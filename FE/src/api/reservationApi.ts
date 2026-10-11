@@ -17,17 +17,25 @@ export interface ReservationCreateRequest {
   email?: string;
   reserved_at: string;
   guest_count: number;
-  preferred_zone?: string;
+  preferred_zone?: TableZone;
   note?: string;
 }
 
 export interface ReservationResponse {
   id: string;
   code: string;
-  status: string;
+  status: ReservationStatus;
+  guest_name: string;
+  phone: string;
+  email: string | null;
   reserved_at: string;
+  reserved_end: string;
   guest_count: number;
-  // ... other fields if needed
+  preferred_zone: TableZone | null;
+  note: string | null;
+  table: TableBrief | null;
+  cancel_reason: string | null;
+  created_at: string;
 }
 
 // bàn rút gọn đi kèm đặt bàn

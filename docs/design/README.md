@@ -13,7 +13,7 @@ mục [3. Cách hiểu SRS](#3-cách-hiểu-srs).
 ## 1. Module
 
 Các module nghiệp vụ nằm dưới `com.restaurant.modules.<module>`; hạ tầng dùng chung nằm ở `com.restaurant.common`
-(security, exception, response, storage, mail, idempotency, rate-limit, logging).
+(security, exception, response, storage, mail, logging).
 
 | Thư mục | Package (`com.restaurant.modules.`) | Use case |
 |---|---|---|
@@ -77,8 +77,8 @@ gọi ngược lên. Cách giải: module sở hữu dữ liệu định nghĩa 
 - Xóa thành công trả 200 với `data: null`. Tạo mới trả 201.
 - Resource là danh từ số nhiều `kebab-case`; nhúng tối đa 2 cấp (rule 2.8). Hành động đổi trạng thái là `PUT .../{id}/<hành-động>`.
 - Endpoint của riêng người đăng nhập đặt dưới `/users/me` hoặc `/me/...`; endpoint quản trị của Quản lý đặt dưới `/admin/...`.
-- Các POST tạo mới có rủi ro ghi trùng nếu client gửi lại (tạo đặt bàn, mở bàn, thanh toán) gắn `@Idempotent` của
-  `common/idempotency`: client gửi header `Idempotency-Key`. Không gắn lên `POST /auth/login`.
+- Chống ghi trùng khi client gửi lại (tạo đặt bàn, mở bàn, thanh toán) dựa vào ràng buộc CSDL và khóa dòng (xem mục chống đồng thời), không dùng
+  `Idempotency-Key`; FE khóa nút khi đang gửi.
 
 ### 2.2 Định danh, thời gian và tiền
 
@@ -226,9 +226,8 @@ Mã đã có trong `ErrorCode`:
 | `FORBIDDEN` | 403 | Sai vai trò (`@PreAuthorize`) |
 | `NOT_FOUND` | 404 | Không tồn tại, đã xóa, hoặc không thuộc quyền sở hữu; ghi đè câu thông báo theo ngữ cảnh |
 | `DUPLICATE` | 409 | Vi phạm ràng buộc duy nhất chưa có mã riêng |
-| `RATE_LIMIT_EXCEEDED` | 429 | Gọi quá nhanh |
-| `REQUEST_IN_PROGRESS` | 409 | Cùng `Idempotency-Key` đang được xử lý |
 | `FILE_TYPE_NOT_SUPPORTED` | 400 | Ảnh không phải png, gif, jpg, jpeg |
+| `FILE_TOO_LARGE` | 400 | Ảnh vượt giới hạn dung lượng multipart (5MB) |
 | `AUTH_PASSWORD_CONFIRM_MISMATCH` | 400 | Mật khẩu xác nhận không trùng |
 | `AUTH_EMAIL_ALREADY_EXISTS` | 409 | Email đã có người dùng |
 | `AUTH_CREDENTIALS_INVALID` | 401 | Sai email hoặc mật khẩu |
@@ -306,7 +305,6 @@ Dùng lại cấu hình có sẵn: `app.timezone`, `app.auth.frontend-url`, `app
 | Hai bếp cùng nhận một dòng món (UC016 4a) | Cập nhật có điều kiện `UPDATE order_items SET status='COOKING' ... WHERE id=? AND status='PENDING'`; 0 dòng bị ảnh hưởng → `ORDER_ITEM_STATUS_CONFLICT` |
 | Hai thu ngân cùng tính tiền một bàn | `SELECT ... FOR UPDATE` trên dòng `orders`; ràng buộc `invoices.order_id` unique làm lớp chặn cuối; người thứ hai nhận `ORDER_NOT_OPEN` |
 | Hai phục vụ cùng mở đơn cho một bàn trống | Unique một phần `orders (table_id) WHERE status = 'OPEN'`; người thứ hai nhận `ORDER_TABLE_NOT_OPENABLE` |
-| Gửi lại request tạo do mạng chậm | `Idempotency-Key` (mục 2.1) |
 
 Thứ tự khóa khi một transaction phải khóa nhiều bản ghi: `reservations` → `orders` → `dining_tables`, tránh deadlock.
 
@@ -348,7 +346,7 @@ Những chỗ SRS chưa quy định, mập mờ hoặc tự mâu thuẫn, và c�
 | A21 | Bảng 2-12: tìm theo tài khoản "Locked/Unlocked" | Là `UserStatus` `LOCKED`/`ACTIVE`; khách hàng chưa xác thực email vẫn hiện, lọc được bằng `email_verified` |
 | A22 | UC012: món `OUT_OF_STOCK` "vẫn hiển thị" nhưng không gọi được | `GET /menu/dishes` trả `AVAILABLE` và `OUT_OF_STOCK`; `DISCONTINUED` chỉ Quản lý thấy |
 | A23 | UC017 hóa đơn "gắn với tài khoản (đơn hàng của các đặt bàn do Khách hàng đặt khi đăng nhập)" | `reservations.customer_id` được sao chép sang `orders.customer_id` lúc nhận bàn, rồi sang `invoices.customer_id` lúc thanh toán. Khách vãng lai (không đặt bàn, hoặc đặt bàn khi chưa đăng nhập) không có hóa đơn trên tài khoản |
-| A24 | UC014 xem danh sách "mặc định theo ngày hôm nay" | `GET /reservations` mặc định `date` = hôm nay, sắp theo `reserved_at` tăng dần; truyền `date` hoặc các điều kiện UC007 để lọc khác |
+| A24 | UC014 xem danh sách "mặc định theo ngày hôm nay" | `GET /reservations` chỉ mặc định `date` = hôm nay khi **không có tiêu chí nào** (`date`, `status`, `code`, `keyword`), sắp theo `reserved_at` tăng dần; lọc theo `status` thì tìm trên mọi ngày để không mất đơn Chờ xác nhận của ngày khác |
 
 Các quy ước thiết kế khác ở những chỗ SRS không nói:
 
@@ -452,7 +450,8 @@ lúc nhận bàn, nên số version của hai module này theo thứ tự làm.
 
 | File | Nội dung | Trạng thái |
 |---|---|---|
-| `V1__ha_tang.sql` | `idempotency_keys` | Đã có |
+| `V1__ha_tang.sql` | `idempotency_keys` (đã bỏ ở V11) | Đã có |
+| `V11__bo_idempotency.sql` | xóa `idempotency_keys` | Đã viết |
 | `V2__nguoi_dung.sql` | `users`, `user_tokens` | Đã viết (module `auth-profile`) |
 | `V3__thuc_don.sql` | `dishes` | Đã viết (`menu-management`) |
 | `V4__ban.sql` | `dining_tables` | Đã viết (`table-management`) |

@@ -70,7 +70,7 @@ Bốn danh mục mặc định (Khai vị, Món chính, Đồ uống, Tráng mi�
 
 | DTO | Trường |
 |---|---|
-| `DishSummaryResponse` | `id`, `name`, `categoryId`, `categoryName`, `price`, `unit`, `imageUrl`, `status` |
+| `DishSummaryResponse` | `id`, `name`, `categoryId`, `categoryName`, `price`, `unit`, `description`, `imageUrl`, `status` |
 | `DishDetailResponse` | `id`, `name`, `categoryId`, `categoryName`, `price`, `unit`, `description`, `prepTimeMinutes`, `imageUrl`, `status`, `createdAt`, `updatedAt` |
 | `MenuCategoryResponse` | `id`, `name`, `sortOrder`, `dishCount` (số món `AVAILABLE`/`OUT_OF_STOCK`) |
 | `CategoryResponse` | `id`, `name`, `sortOrder`, `dishCount` (số món ở mọi trạng thái) |

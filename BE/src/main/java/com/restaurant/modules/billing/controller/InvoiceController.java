@@ -1,6 +1,5 @@
 package com.restaurant.modules.billing.controller;
 
-import com.restaurant.common.idempotency.Idempotent;
 import com.restaurant.common.response.ApiResponse;
 import com.restaurant.common.response.PageRequestParams;
 import com.restaurant.common.response.PageResponse;
@@ -26,8 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /**
- * Hóa đơn: Thu ngân thanh toán (UC018); Thu ngân và Quản lý tìm, xem và in lại (UC007, UC019). {@code POST /invoices} nhận header
- * {@code Idempotency-Key} để gửi lại do mạng chậm không lập hóa đơn thứ hai.
+ * Hóa đơn: Thu ngân thanh toán (UC018); Thu ngân và Quản lý tìm, xem và in lại (UC007, UC019)..
  */
 @RestController
 @RequestMapping("/invoices")
@@ -38,7 +36,6 @@ public class InvoiceController {
 
     @PostMapping
     @PreAuthorize("hasRole('CASHIER')")
-    @Idempotent
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<InvoiceResponse> createInvoice(@Valid @RequestBody InvoiceCreateRequest request) {
         return ApiResponse.of(invoiceService.createInvoice(SecurityContextUtil.currentUserId(), request));

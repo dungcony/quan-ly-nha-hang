@@ -26,10 +26,12 @@ export default function AdminCustomersPage() {
   const toast = useToast();
 
   const [filters, setFilters] = useState<UserSearchQuery>({});
-  const [draft, setDraft] = useState({ name: '', phone: '', status: '' });
+  const [draft, setDraft] = useState({ name: '', email: '', phone: '', status: '', verified: '' });
   const [page, setPage] = useState(1);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<UserSummary | null>(null);
+  // khóa hoặc mở khóa phải qua bước xác nhận (UC009)
+  const [statusChange, setStatusChange] = useState<{ customer: UserSummary; status: UserStatus } | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['customers', filters, page],
@@ -55,6 +57,7 @@ export default function AdminCustomersPage() {
       refresh();
     },
     onError: (err) => toast.error(getFormErrorMessage(err, 'Không đổi được trạng thái tài khoản')),
+    onSettled: () => setStatusChange(null),
   });
 
   const deleteMutation = useMutation({
@@ -73,8 +76,10 @@ export default function AdminCustomersPage() {
     setPage(1);
     setFilters({
       name: draft.name.trim() || undefined,
+      email: draft.email.trim() || undefined,
       phone: draft.phone.trim() || undefined,
       status: (draft.status as UserStatus) || undefined,
+      email_verified: draft.verified === '' ? undefined : draft.verified === 'true',
     });
   };
 
@@ -86,7 +91,7 @@ export default function AdminCustomersPage() {
       </div>
 
       <form onSubmit={applyFilters} className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4">
-        <div className="min-w-48 flex-1">
+        <div className="min-w-40 flex-1">
           <input
             className={inputClass}
             placeholder="Tìm theo tên..."
@@ -94,12 +99,26 @@ export default function AdminCustomersPage() {
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
         </div>
+        <div className="min-w-40 flex-1">
+          <input
+            className={inputClass}
+            placeholder="Email..."
+            value={draft.email}
+            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+          />
+        </div>
         <input
-          className={`${inputClass} w-44`}
+          className={`${inputClass} w-40`}
           placeholder="Số điện thoại"
+          inputMode="numeric"
           value={draft.phone}
           onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
         />
+        <select className={`${inputClass} w-44`} value={draft.verified} onChange={(e) => setDraft({ ...draft, verified: e.target.value })}>
+          <option value="">Mọi trạng thái email</option>
+          <option value="true">Đã xác thực email</option>
+          <option value="false">Chưa xác thực email</option>
+        </select>
         <select className={`${inputClass} w-40`} value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
           <option value="">Mọi trạng thái</option>
           {(Object.keys(USER_STATUS_LABELS) as UserStatus[]).map((s) => (
@@ -119,7 +138,13 @@ export default function AdminCustomersPage() {
       ) : isError ? (
         <EmptyState error message="Không tải được danh sách khách hàng." />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState message="Không có khách hàng nào phù hợp." />
+        <EmptyState
+          message={
+            Object.values(filters).some((v) => v !== undefined)
+              ? 'Không tìm thấy tài khoản nào thỏa mãn tiêu chí tìm kiếm.'
+              : 'Chưa có khách hàng nào.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -158,7 +183,7 @@ export default function AdminCustomersPage() {
                         className={iconBtn}
                         title={locked ? 'Mở khóa' : 'Khóa tài khoản'}
                         disabled={statusMutation.isPending}
-                        onClick={() => statusMutation.mutate({ id: customer.id, status: locked ? 'ACTIVE' : 'LOCKED' })}
+                        onClick={() => setStatusChange({ customer, status: locked ? 'ACTIVE' : 'LOCKED' })}
                       >
                         {locked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
                       </button>
@@ -205,6 +230,21 @@ export default function AdminCustomersPage() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={statusChange !== null}
+        title={statusChange?.status === 'LOCKED' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+        message={
+          statusChange?.status === 'LOCKED'
+            ? `Khóa tài khoản "${statusChange.customer.full_name}"? Khách sẽ không đăng nhập được và phiên đang dùng bị chặn ngay.`
+            : `Mở khóa tài khoản "${statusChange?.customer.full_name ?? ''}"?`
+        }
+        confirmLabel={statusChange?.status === 'LOCKED' ? 'Khóa' : 'Mở khóa'}
+        danger={statusChange?.status === 'LOCKED'}
+        loading={statusMutation.isPending}
+        onConfirm={() => statusChange && statusMutation.mutate({ id: statusChange.customer.id, status: statusChange.status })}
+        onCancel={() => setStatusChange(null)}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

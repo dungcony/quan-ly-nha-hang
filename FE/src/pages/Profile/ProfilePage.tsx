@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -10,18 +10,30 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { userApi } from '@/api/userApi';
-import type { ErrorResponse, Gender } from '@/utils/apiTypes';
+import { getFormErrorMessage } from '@/utils/apiError';
+import { assetUrl } from '@/utils/assetUrl';
+import { ROLE_LABELS, USER_STATUS_LABELS } from '@/utils/labels';
+import { todayIso } from '@/utils/format';
+import type { Gender } from '@/utils/apiTypes';
+
+// ảnh đại diện chỉ nhận png, gif, jpg, jpeg và tối đa 5MB (UC005, khớp giới hạn multipart của backend)
+const AVATAR_TYPES = ['image/png', 'image/gif', 'image/jpeg'];
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, isAuthenticated, isLoading: isAuthLoading, refreshProfile } = useAuth();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState<Gender>('OTHER');
+  const [gender, setGender] = useState<Gender | ''>('');
   const [dateOfBirth, setDateOfBirth] = useState('');
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -29,6 +41,7 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
@@ -43,12 +56,20 @@ export default function ProfilePage() {
     }
   }, [isAuthLoading, isAuthenticated, navigate]);
 
+  // liên kết "Đổi mật khẩu" ở menu tài khoản trỏ tới #doi-mat-khau nên cuộn tới đúng mục khi trang đã có dữ liệu
+  useEffect(() => {
+    if (profile && location.hash === '#doi-mat-khau') {
+      document.getElementById('doi-mat-khau')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [profile, location.hash]);
+
   // đồng bộ dữ liệu vào form khi có profile
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name || '');
+      setEmail(profile.email || '');
       setPhone(profile.phone || '');
-      setGender(profile.gender || 'OTHER');
+      setGender(profile.gender || '');
       setDateOfBirth(profile.date_of_birth || '');
     }
   }, [profile]);
@@ -62,23 +83,46 @@ export default function ProfilePage() {
 
     try {
       await userApi.updateProfile({
-        full_name: fullName,
-        phone: phone || undefined,
-        gender,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        gender: gender || undefined,
         date_of_birth: dateOfBirth || undefined,
       });
       await refreshProfile();
       setProfileSuccessMsg('Cập nhật hồ sơ thành công!');
     } catch (err: unknown) {
-      const errorData = err as ErrorResponse;
-      if (errorData?.error?.fields && errorData.error.fields.length > 0) {
-        const fieldDetails = errorData.error.fields.map((f) => f.message).join('. ');
-        setProfileErrorMsg(fieldDetails);
-      } else {
-        setProfileErrorMsg(errorData?.error?.message || 'Không thể cập nhật hồ sơ cá nhân.');
-      }
+      // AUTH_EMAIL_ALREADY_EXISTS: email đã thuộc tài khoản khác (UC005 luồng ngoại lệ)
+      setProfileErrorMsg(getFormErrorMessage(err, 'Không thể cập nhật hồ sơ cá nhân.'));
     } finally {
       setIsUpdatingProfile(false);
+    }
+  };
+
+  // tải ảnh đại diện ngay khi chọn tệp
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setProfileSuccessMsg(null);
+    setProfileErrorMsg(null);
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setProfileErrorMsg('Chỉ chấp nhận ảnh png, gif, jpg hoặc jpeg.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setProfileErrorMsg('Ảnh vượt quá dung lượng tối đa 5MB.');
+      return;
+    }
+    setIsUploadingAvatar(true);
+    try {
+      await userApi.updateAvatar(file);
+      await refreshProfile();
+      setProfileSuccessMsg('Đã cập nhật ảnh đại diện.');
+    } catch (err: unknown) {
+      setProfileErrorMsg(getFormErrorMessage(err, 'Không thể tải ảnh đại diện.'));
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -104,14 +148,10 @@ export default function ProfilePage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      // đổi xong thì không còn bị buộc đổi mật khẩu lần đầu
+      await refreshProfile();
     } catch (err: unknown) {
-      const errorData = err as ErrorResponse;
-      if (errorData?.error?.fields && errorData.error.fields.length > 0) {
-        const fieldDetails = errorData.error.fields.map((f) => f.message).join('. ');
-        setPwdErrorMsg(fieldDetails);
-      } else {
-        setPwdErrorMsg(errorData?.error?.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu cũ.');
-      }
+      setPwdErrorMsg(getFormErrorMessage(err, 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu cũ.'));
     } finally {
       setIsChangingPassword(false);
     }
@@ -127,11 +167,42 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full">
+      {profile.must_change_password && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm flex items-start gap-2.5" role="alert">
+          <AlertCircle className="size-5 shrink-0 mt-0.5" />
+          <span className="text-pretty">
+            Đây là lần đăng nhập đầu tiên bằng mật khẩu do Quản lý cấp. Vui lòng đổi mật khẩu ở mục “Đổi mật khẩu” bên dưới.
+          </span>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
         <div className="p-6 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="size-16 rounded-full bg-amber-100 text-amber-700 font-bold text-2xl flex items-center justify-center">
-              {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : 'U'}
+            <div className="relative">
+              {profile.avatar_url ? (
+                <img src={assetUrl(profile.avatar_url)} alt="Ảnh đại diện" className="size-16 rounded-full object-cover" />
+              ) : (
+                <div className="size-16 rounded-full bg-amber-100 text-amber-700 font-bold text-2xl flex items-center justify-center">
+                  {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : 'U'}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                aria-label="Đổi ảnh đại diện"
+                className="absolute -bottom-1 -right-1 size-8 rounded-full bg-white border border-slate-300 text-slate-600 hover:text-amber-700 hover:border-amber-500 flex items-center justify-center shadow-sm disabled:opacity-50"
+              >
+                <Camera className="size-4" />
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/gif,image/jpeg"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 text-balance">{profile.full_name}</h1>
@@ -139,15 +210,20 @@ export default function ProfilePage() {
                 <Mail className="size-3.5" />
                 <span>{profile.email}</span>
               </p>
+              {isUploadingAvatar && <p className="text-xs text-slate-500 mt-1">Đang tải ảnh lên...</p>}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">
               <Shield className="size-3.5" />
-              <span>{profile.role}</span>
+              <span>{ROLE_LABELS[profile.role]}</span>
             </span>
-            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-              {profile.status}
+            <span
+              className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                profile.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+              }`}
+            >
+              {USER_STATUS_LABELS[profile.status]}
             </span>
           </div>
         </div>
@@ -182,10 +258,29 @@ export default function ProfilePage() {
                 id="p-name"
                 type="text"
                 required
+                maxLength={255}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
               />
+            </div>
+
+            <div>
+              <label htmlFor="p-email" className="block text-sm font-medium text-slate-700 mb-1">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="size-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  id="p-email"
+                  type="email"
+                  required
+                  maxLength={255}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                />
+              </div>
             </div>
 
             <div>
@@ -197,6 +292,9 @@ export default function ProfilePage() {
                 <input
                   id="p-phone"
                   type="tel"
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  title="Số điện thoại gồm 10 chữ số"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0912345678"
@@ -212,9 +310,10 @@ export default function ProfilePage() {
               <select
                 id="p-gender"
                 value={gender}
-                onChange={(e) => setGender(e.target.value as Gender)}
+                onChange={(e) => setGender(e.target.value as Gender | '')}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white"
               >
+                <option value="">Không chọn</option>
                 <option value="MALE">Nam</option>
                 <option value="FEMALE">Nữ</option>
                 <option value="OTHER">Khác</option>
@@ -230,6 +329,7 @@ export default function ProfilePage() {
                 <input
                   id="p-dob"
                   type="date"
+                  max={todayIso()}
                   value={dateOfBirth}
                   onChange={(e) => setDateOfBirth(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
@@ -251,7 +351,7 @@ export default function ProfilePage() {
         </div>
 
         {/* đổi mật khẩu */}
-        <div className="p-6 sm:p-8">
+        <div id="doi-mat-khau" className="p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <KeyRound className="size-5 text-amber-600" />
             <span>Đổi mật khẩu</span>
@@ -294,10 +394,12 @@ export default function ProfilePage() {
                 id="new-pwd"
                 type="password"
                 required
+                minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
               />
+              <p className="text-xs text-slate-500 mt-1">Tối thiểu 8 ký tự, có cả chữ và số.</p>
             </div>
 
             <div>
@@ -328,4 +430,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

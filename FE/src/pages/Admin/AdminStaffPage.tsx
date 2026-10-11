@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit2, Trash2, Lock, Unlock } from 'lucide-react';
+import { Plus, Search, Edit2, Eye, Trash2, Lock, Unlock } from 'lucide-react';
 import {
   staffApi,
   type StaffCreatePayload,
@@ -19,6 +19,8 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { btnPrimary, btnSecondary, iconBtn, inputClass, tableHeadClass } from '@/components/ui/forms';
 import { getFormErrorMessage } from '@/utils/apiError';
+import { assetUrl } from '@/utils/assetUrl';
+import { formatDate, formatDateTime, todayIso } from '@/utils/format';
 import { ROLE_LABELS, STAFF_ROLES, USER_STATUS_LABELS } from '@/utils/labels';
 import type { Gender, Role, UserStatus } from '@/utils/apiTypes';
 
@@ -54,7 +56,7 @@ export default function AdminStaffPage() {
   const { user } = useAuth();
 
   const [filters, setFilters] = useState<UserSearchQuery>({});
-  const [draft, setDraft] = useState({ name: '', role: '', status: '' });
+  const [draft, setDraft] = useState({ name: '', email: '', phone: '', role: '', status: '' });
   const [page, setPage] = useState(1);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -63,6 +65,9 @@ export default function AdminStaffPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<UserSummary | null>(null);
+  // khóa hoặc mở khóa phải qua bước xác nhận (UC008)
+  const [statusChange, setStatusChange] = useState<{ staff: UserSummary; status: UserStatus } | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['staff', filters, page],
@@ -103,6 +108,13 @@ export default function AdminStaffPage() {
       refresh();
     },
     onError: (err) => toast.error(getFormErrorMessage(err, 'Không đổi được trạng thái tài khoản')),
+    onSettled: () => setStatusChange(null),
+  });
+
+  const detailQuery = useQuery({
+    queryKey: ['staff-detail', detailId],
+    queryFn: () => staffApi.get(detailId as string).then((res) => res.data),
+    enabled: !!detailId,
   });
 
   const deleteMutation = useMutation({
@@ -153,6 +165,8 @@ export default function AdminStaffPage() {
     setPage(1);
     setFilters({
       name: draft.name.trim() || undefined,
+      email: draft.email.trim() || undefined,
+      phone: draft.phone.trim() || undefined,
       role: (draft.role as Role) || undefined,
       status: (draft.status as UserStatus) || undefined,
     });
@@ -172,12 +186,29 @@ export default function AdminStaffPage() {
       </div>
 
       <form onSubmit={applyFilters} className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-slate-50 px-6 py-4">
-        <div className="min-w-48 flex-1">
+        <div className="min-w-40 flex-1">
           <input
             className={inputClass}
             placeholder="Tìm theo tên..."
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+        </div>
+        <div className="min-w-40 flex-1">
+          <input
+            className={inputClass}
+            placeholder="Email..."
+            value={draft.email}
+            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+          />
+        </div>
+        <div className="min-w-32 flex-1">
+          <input
+            className={inputClass}
+            placeholder="Điện thoại..."
+            inputMode="numeric"
+            value={draft.phone}
+            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
           />
         </div>
         <select className={`${inputClass} w-40`} value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
@@ -207,7 +238,13 @@ export default function AdminStaffPage() {
       ) : isError ? (
         <EmptyState error message="Không tải được danh sách nhân viên." />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState message="Không có nhân viên nào phù hợp." />
+        <EmptyState
+          message={
+            Object.values(filters).some(Boolean)
+              ? 'Không tìm thấy tài khoản nào thỏa mãn tiêu chí tìm kiếm.'
+              : 'Chưa có nhân viên nào.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -243,9 +280,12 @@ export default function AdminStaffPage() {
                         className={iconBtn}
                         title={locked ? 'Mở khóa' : 'Khóa tài khoản'}
                         disabled={isSelf || statusMutation.isPending}
-                        onClick={() => statusMutation.mutate({ id: staff.id, status: locked ? 'ACTIVE' : 'LOCKED' })}
+                        onClick={() => setStatusChange({ staff, status: locked ? 'ACTIVE' : 'LOCKED' })}
                       >
                         {locked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
+                      </button>
+                      <button type="button" className={iconBtn} onClick={() => setDetailId(staff.id)} aria-label="Xem chi tiết" title="Xem chi tiết">
+                        <Eye className="size-4" />
                       </button>
                       <button type="button" className={iconBtn} onClick={() => openForm(staff)} aria-label="Sửa">
                         <Edit2 className="size-4" />
@@ -342,6 +382,7 @@ export default function AdminStaffPage() {
             <input
               className={inputClass}
               type="date"
+              max={todayIso()}
               value={form.date_of_birth}
               onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
             />
@@ -382,6 +423,78 @@ export default function AdminStaffPage() {
           </FormField>
         </form>
       </Modal>
+
+      <Modal open={!!detailId} title="Chi tiết nhân viên" onClose={() => setDetailId(null)}>
+        {detailQuery.isLoading ? (
+          <Spinner />
+        ) : detailQuery.isError || !detailQuery.data ? (
+          <EmptyState error message="Không tải được chi tiết nhân viên." />
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              {detailQuery.data.avatar_url ? (
+                <img src={assetUrl(detailQuery.data.avatar_url)} alt="Ảnh đại diện" className="size-16 rounded-full object-cover" />
+              ) : (
+                <div className="flex size-16 items-center justify-center rounded-full bg-amber-100 text-2xl font-bold text-amber-700">
+                  {detailQuery.data.full_name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <p className="text-lg font-bold text-slate-800">{detailQuery.data.full_name}</p>
+                <p className="text-sm text-slate-500">{detailQuery.data.email}</p>
+              </div>
+            </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-slate-500">Vai trò</dt>
+                <dd>
+                  <Badge tone={detailQuery.data.role === 'MANAGER' ? 'blue' : 'slate'}>{ROLE_LABELS[detailQuery.data.role]}</Badge>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Trạng thái</dt>
+                <dd>
+                  <Badge tone={detailQuery.data.status === 'LOCKED' ? 'red' : 'green'}>{USER_STATUS_LABELS[detailQuery.data.status]}</Badge>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Điện thoại</dt>
+                <dd className="font-medium text-slate-800">{detailQuery.data.phone ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Giới tính</dt>
+                <dd className="font-medium text-slate-800">{detailQuery.data.gender ? GENDER_LABELS[detailQuery.data.gender] : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Ngày sinh</dt>
+                <dd className="font-medium text-slate-800">{formatDate(detailQuery.data.date_of_birth)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Ngày tạo</dt>
+                <dd className="font-medium text-slate-800">{formatDateTime(detailQuery.data.created_at)}</dd>
+              </div>
+              {detailQuery.data.must_change_password && (
+                <div className="col-span-2 rounded-lg bg-amber-50 p-3 text-amber-800">Chưa đổi mật khẩu lần đầu.</div>
+              )}
+            </dl>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={statusChange !== null}
+        title={statusChange?.status === 'LOCKED' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+        message={
+          statusChange?.status === 'LOCKED'
+            ? `Khóa tài khoản "${statusChange.staff.full_name}"? Nhân viên sẽ không đăng nhập được và phiên đang dùng bị chặn ngay.`
+            : `Mở khóa tài khoản "${statusChange?.staff.full_name ?? ''}"?`
+        }
+        confirmLabel={statusChange?.status === 'LOCKED' ? 'Khóa' : 'Mở khóa'}
+        danger={statusChange?.status === 'LOCKED'}
+        loading={statusMutation.isPending}
+        onConfirm={() => statusChange && statusMutation.mutate({ id: statusChange.staff.id, status: statusChange.status })}
+        onCancel={() => setStatusChange(null)}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

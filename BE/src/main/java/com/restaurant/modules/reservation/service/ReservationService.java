@@ -48,7 +48,8 @@ public interface ReservationService {
     ReservationResponse getReservation(UUID id);
 
     /**
-     * Bàn gán được cho đặt bàn chờ xác nhận: đủ sức chứa, không tạm khóa, không trùng giờ; bàn cùng khu vực ưu tiên xếp trước.
+     * Bàn gán được cho đặt bàn chờ xác nhận (xếp bàn) hoặc đã xác nhận (đổi bàn lúc nhận bàn): đủ sức chứa, không tạm khóa,
+     * không trùng giờ; bàn cùng khu vực ưu tiên xếp trước. Với đặt bàn đã xác nhận chỉ trả bàn đang {@code AVAILABLE}.
      *
      * @throws com.restaurant.common.exception.BusinessException {@code NOT_FOUND}, {@code RESERVATION_STATUS_INVALID}
      */

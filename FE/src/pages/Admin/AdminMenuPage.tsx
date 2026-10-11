@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit2, Trash2, ImageOff, PauseCircle, PlayCircle } from 'lucide-react';
 import { dishApi, type DishPayload, type DishSearchQuery, type DishSummary } from '@/api/dishApi';
@@ -19,6 +19,10 @@ import { DISH_STATUS_LABELS } from '@/utils/labels';
 import type { DishStatus } from '@/utils/apiTypes';
 
 const PAGE_SIZE = 10;
+
+// ảnh món chỉ nhận png, gif, jpg, jpeg và tối đa 5MB, khớp giới hạn của backend
+const IMAGE_TYPES = ['image/png', 'image/gif', 'image/jpeg'];
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const STATUS_TONE: Record<DishStatus, BadgeTone> = {
   AVAILABLE: 'green',
@@ -52,7 +56,7 @@ export default function AdminMenuPage() {
 
   // bộ lọc đang áp dụng và bản nháp đang gõ; chỉ áp dụng khi bấm Tìm
   const [filters, setFilters] = useState<DishSearchQuery>({});
-  const [draft, setDraft] = useState({ name: '', category_id: '', status: '' });
+  const [draft, setDraft] = useState({ name: '', category_id: '', status: '', min_price: '', max_price: '' });
   const [page, setPage] = useState(1);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -86,14 +90,29 @@ export default function AdminMenuPage() {
   const saveMutation = useMutation({
     mutationFn: async (payload: DishPayload) => {
       const res = editingId ? await dishApi.update(editingId, payload) : await dishApi.create(payload);
-      // ảnh tải riêng sau khi món đã có id
-      if (imageFile) await dishApi.uploadImage(res.data.id, imageFile);
-      return res;
+      // ảnh tải riêng sau khi món đã có id; ảnh lỗi không được làm mất món vừa lưu
+      let imageError: string | null = null;
+      if (imageFile) {
+        try {
+          await dishApi.uploadImage(res.data.id, imageFile);
+        } catch (err) {
+          imageError = getFormErrorMessage(err, 'Không tải được ảnh');
+        }
+      }
+      return { dish: res.data, imageError };
     },
-    onSuccess: () => {
+    onSuccess: ({ dish, imageError }) => {
+      refresh();
+      if (imageError) {
+        // món đã có trong hệ thống nên chuyển form sang chế độ sửa món này để bấm Lưu lại không bị trùng tên
+        setEditingId(dish.id);
+        setCurrentImage(dish.image_url);
+        setImageFile(null);
+        setFormError(`Món đã được lưu nhưng ảnh chưa tải lên được: ${imageError}`);
+        return;
+      }
       toast.success(editingId ? 'Đã cập nhật món' : 'Đã thêm món');
       setIsFormOpen(false);
-      refresh();
     },
     onError: (err) => setFormError(getFormErrorMessage(err, 'Không lưu được món ăn')),
   });
@@ -183,7 +202,25 @@ export default function AdminMenuPage() {
       name: draft.name.trim() || undefined,
       category_id: draft.category_id || undefined,
       status: (draft.status as DishStatus) || undefined,
+      min_price: draft.min_price ? Number(draft.min_price) : undefined,
+      max_price: draft.max_price ? Number(draft.max_price) : undefined,
     });
+  };
+
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (file && !IMAGE_TYPES.includes(file.type)) {
+      e.target.value = '';
+      setFormError('Chỉ chấp nhận ảnh png, gif, jpg hoặc jpeg.');
+      return;
+    }
+    if (file && file.size > IMAGE_MAX_BYTES) {
+      e.target.value = '';
+      setFormError('Ảnh vượt quá dung lượng tối đa 5MB.');
+      return;
+    }
+    setFormError(null);
+    setImageFile(file);
   };
 
   // ảnh vừa chọn xem trước bằng object url, giải phóng khi đổi ảnh hoặc đóng form
@@ -241,6 +278,22 @@ export default function AdminMenuPage() {
             </option>
           ))}
         </select>
+        <input
+          className={`${inputClass} w-32`}
+          type="number"
+          min={0}
+          placeholder="Giá từ"
+          value={draft.min_price}
+          onChange={(e) => setDraft({ ...draft, min_price: e.target.value })}
+        />
+        <input
+          className={`${inputClass} w-32`}
+          type="number"
+          min={0}
+          placeholder="Giá đến"
+          value={draft.max_price}
+          onChange={(e) => setDraft({ ...draft, max_price: e.target.value })}
+        />
         <button type="submit" className={btnSecondary}>
           <Search className="size-4" />
           Tìm
@@ -252,7 +305,13 @@ export default function AdminMenuPage() {
       ) : isError ? (
         <EmptyState error message="Không tải được danh sách món." />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState message="Không có món nào phù hợp." />
+        <EmptyState
+          message={
+            Object.values(filters).some((v) => v !== undefined)
+              ? 'Không tìm thấy món ăn nào thỏa mãn tiêu chí tìm kiếm.'
+              : 'Chưa có món ăn nào.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -374,19 +433,25 @@ export default function AdminMenuPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="Trạng thái" required>
-            <select
-              className={inputClass}
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as DishStatus })}
-            >
+          <fieldset>
+            <legend className="mb-1 block text-sm font-medium text-slate-700">
+              Trạng thái<span className="ml-0.5 text-red-500">*</span>
+            </legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2">
               {(Object.keys(DISH_STATUS_LABELS) as DishStatus[]).map((s) => (
-                <option key={s} value={s}>
+                <label key={s} className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="dish-status"
+                    value={s}
+                    checked={form.status === s}
+                    onChange={() => setForm({ ...form, status: s })}
+                  />
                   {DISH_STATUS_LABELS[s]}
-                </option>
+                </label>
               ))}
-            </select>
-          </FormField>
+            </div>
+          </fieldset>
           <FormField label="Giá bán (VND)" required>
             <input
               className={inputClass}
@@ -421,7 +486,7 @@ export default function AdminMenuPage() {
               className={inputClass}
               type="file"
               accept="image/png,image/gif,image/jpeg"
-              onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+              onChange={handleImageChange}
             />
           </FormField>
           {previewUrl && (

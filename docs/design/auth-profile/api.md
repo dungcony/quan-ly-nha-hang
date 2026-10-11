@@ -19,9 +19,7 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 
 Ghi chú:
 
-- Sáu endpoint `/auth/*` là công khai và đã được mở trong `SecurityConfig`. Chúng nằm trong phạm vi `RateLimitFilter`
-  (rule giới hạn theo IP) vì `forgot-password` và `resend-verification` phân biệt được email có tài khoản hay không.
-- Không gắn `Idempotency-Key` lên `/auth/login` (xem javadoc `@Idempotent`).
+- Sáu endpoint `/auth/*` là công khai và đã được mở trong `SecurityConfig`.
 - Liên kết trong email: `<frontend-url>/verify-email?token=<token>` và `<frontend-url>/reset-password?token=<token>`.
   `frontend-url` cấu hình ở `app.auth.frontend-url`. Client đọc `token` rồi gọi API tương ứng; token là chuỗi ngẫu nhiên 32 byte
   (Base64URL), server chỉ lưu băm SHA-256.

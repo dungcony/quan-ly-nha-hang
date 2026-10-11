@@ -1,6 +1,7 @@
 import type { InvoiceDetail } from '@/api/invoiceApi';
 import { formatDateTime, formatVnd } from '@/utils/format';
 import { PAYMENT_METHOD_LABELS } from '@/utils/labels';
+import { RESTAURANT_INFO } from '@/utils/restaurantInfo';
 
 // khung hóa đơn; phần có id print-area là phần duy nhất được in (xem index.css)
 export default function InvoiceReceipt({ invoice }: { invoice: InvoiceDetail }) {
@@ -9,7 +10,7 @@ export default function InvoiceReceipt({ invoice }: { invoice: InvoiceDetail }) 
   return (
     <div id="print-area" className="mx-auto w-full max-w-sm bg-white p-4 font-mono text-xs text-slate-900">
       <div className="text-center">
-        <h3 className="text-base font-bold">FlavorHaven</h3>
+        <h3 className="text-base font-bold">{RESTAURANT_INFO.name}</h3>
         <p className="font-bold">HÓA ĐƠN THANH TOÁN</p>
         {invoice.reprint && <p className="mt-1 font-bold">*** BẢN IN LẠI ***</p>}
       </div>
@@ -59,14 +60,19 @@ export default function InvoiceReceipt({ invoice }: { invoice: InvoiceDetail }) 
           <span>Thanh toán</span>
           <span>{PAYMENT_METHOD_LABELS[invoice.payment_method]}</span>
         </div>
-        <div className="flex justify-between">
-          <span>Tiền khách đưa</span>
-          <span>{formatVnd(invoice.amount_received)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Tiền thối</span>
-          <span>{formatVnd(invoice.change_amount)}</span>
-        </div>
+        {/* thẻ và chuyển khoản thanh toán đúng số tiền nên không có tiền khách đưa và tiền thối */}
+        {invoice.payment_method === 'CASH' && (
+          <>
+            <div className="flex justify-between">
+              <span>Tiền khách đưa</span>
+              <span>{formatVnd(invoice.amount_received)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Tiền thối</span>
+              <span>{formatVnd(invoice.change_amount)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       {invoice.note && <p className="mt-3">Ghi chú: {invoice.note}</p>}

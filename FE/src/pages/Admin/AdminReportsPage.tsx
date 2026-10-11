@@ -5,17 +5,33 @@ import Spinner from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
 import { btnSecondary, inputClass, labelClass, tableHeadClass } from '@/components/ui/forms';
 import { cn } from '@/utils/cn';
-import { formatVnd, toIsoDate } from '@/utils/format';
+import { addDaysIso, formatVnd, todayIso } from '@/utils/format';
 import { getErrorMessage } from '@/utils/apiError';
 
 type Granularity = 'daily' | 'monthly';
 
-// khoảng mặc định là 7 ngày gần nhất tính cả hôm nay
+// khoảng mặc định là 7 ngày gần nhất tính cả hôm nay, theo múi giờ nhà hàng
 function defaultRange() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(to.getDate() - 6);
-  return { from: toIsoDate(from), to: toIsoDate(to) };
+  return { from: addDaysIso(-6), to: todayIso() };
+}
+
+// backend chỉ trả ngày hoặc tháng có hóa đơn; điền thêm các mốc trống bằng 0 để biểu đồ liền mạch
+function fillGaps(points: RevenuePoint[], granularity: Granularity, from: string, to: string): RevenuePoint[] {
+  const byLabel = new Map(points.map((p) => [pointLabel(p), p]));
+  const empty = { invoice_count: 0, subtotal: 0, vat_amount: 0, total_amount: 0 };
+  const result: RevenuePoint[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (granularity === 'monthly') cursor.setUTCDate(1);
+  // chặn vòng lặp quá dài nếu khoảng ngày bất thường
+  for (let i = 0; cursor <= end && i < 1000; i++) {
+    const iso = cursor.toISOString().slice(0, 10);
+    const label = granularity === 'daily' ? iso : iso.slice(0, 7);
+    result.push(byLabel.get(label) ?? (granularity === 'daily' ? { date: label, ...empty } : { month: label, ...empty }));
+    if (granularity === 'daily') cursor.setUTCDate(cursor.getUTCDate() + 1);
+    else cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return result;
 }
 
 function pointLabel(point: RevenuePoint): string {
@@ -36,7 +52,12 @@ export default function AdminReportsPage() {
   const [draft, setDraft] = useState(defaultRange);
   const [range, setRange] = useState(defaultRange);
 
-  const invalidRange = draft.from > draft.to;
+  const [topN, setTopN] = useState(10);
+  const [appliedTopN, setAppliedTopN] = useState(10);
+
+  const missingDate = !draft.from || !draft.to;
+  const invalidRange = !missingDate && draft.from > draft.to;
+  const invalidTopN = !Number.isInteger(topN) || topN < 1 || topN > 50;
 
   const revenue = useQuery({
     queryKey: ['report-revenue', granularity, range],
@@ -47,11 +68,12 @@ export default function AdminReportsPage() {
   });
 
   const topDishes = useQuery({
-    queryKey: ['report-top-dishes', range],
-    queryFn: () => reportApi.topDishes({ from_date: range.from, to_date: range.to, top_n: 10 }).then((res) => res.data),
+    queryKey: ['report-top-dishes', range, appliedTopN],
+    queryFn: () => reportApi.topDishes({ from_date: range.from, to_date: range.to, top_n: appliedTopN }).then((res) => res.data),
   });
 
-  const points = revenue.data?.points ?? [];
+  const hasData = (revenue.data?.points.length ?? 0) > 0;
+  const points = hasData ? fillGaps(revenue.data!.points, granularity, range.from, range.to) : [];
   const maxTotal = Math.max(...points.map((p) => p.total_amount), 1);
   const maxQuantity = Math.max(...(topDishes.data?.items.map((d) => d.quantity) ?? []), 1);
 
@@ -66,13 +88,24 @@ export default function AdminReportsPage() {
           className="flex flex-wrap items-end gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!invalidRange) setRange(draft);
+            if (!invalidRange && !missingDate && !invalidTopN) {
+              setRange(draft);
+              setAppliedTopN(topN);
+            }
           }}
         >
+          <div>
+            <span className={labelClass}>Loại báo cáo</span>
+            <select className={inputClass} value={granularity} onChange={(e) => setGranularity(e.target.value as Granularity)}>
+              <option value="daily">Doanh thu theo ngày</option>
+              <option value="monthly">Doanh thu theo tháng</option>
+            </select>
+          </div>
           <div>
             <span className={labelClass}>Từ ngày</span>
             <input
               type="date"
+              required
               className={inputClass}
               value={draft.from}
               onChange={(e) => setDraft({ ...draft, from: e.target.value })}
@@ -82,33 +115,32 @@ export default function AdminReportsPage() {
             <span className={labelClass}>Đến ngày</span>
             <input
               type="date"
+              required
               className={inputClass}
               value={draft.to}
               onChange={(e) => setDraft({ ...draft, to: e.target.value })}
             />
           </div>
-          <button type="submit" className={btnSecondary} disabled={invalidRange}>
+          <div>
+            <span className={labelClass}>Số món hiển thị (Top N)</span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              step={1}
+              className={`${inputClass} w-28`}
+              value={topN}
+              onChange={(e) => setTopN(Number(e.target.value))}
+            />
+          </div>
+          <button type="submit" className={btnSecondary} disabled={invalidRange || missingDate || invalidTopN}>
             Xem báo cáo
           </button>
         </form>
       </div>
+      {missingDate && <p className="text-sm text-red-600">Vui lòng chọn đủ ngày bắt đầu và ngày kết thúc.</p>}
       {invalidRange && <p className="text-sm text-red-600">Ngày bắt đầu không được sau ngày kết thúc.</p>}
-
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-        {(['daily', 'monthly'] as Granularity[]).map((g) => (
-          <button
-            key={g}
-            type="button"
-            onClick={() => setGranularity(g)}
-            className={cn(
-              'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-              granularity === g ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-            )}
-          >
-            {g === 'daily' ? 'Theo ngày' : 'Theo tháng'}
-          </button>
-        ))}
-      </div>
+      {invalidTopN && <p className="text-sm text-red-600">Số món hiển thị phải là số nguyên từ 1 đến 50.</p>}
 
       {revenue.isLoading ? (
         <Spinner />
@@ -125,8 +157,8 @@ export default function AdminReportsPage() {
 
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-4 font-semibold text-slate-800">Doanh thu {granularity === 'daily' ? 'theo ngày' : 'theo tháng'}</h3>
-            {points.length === 0 ? (
-              <EmptyState message="Không có hóa đơn nào trong khoảng này." />
+            {!hasData ? (
+              <EmptyState message="Không có dữ liệu trong khoảng thời gian đã chọn." />
             ) : (
               <>
                 <div className="flex h-56 items-end gap-2 overflow-x-auto pb-1">
@@ -173,13 +205,13 @@ export default function AdminReportsPage() {
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 font-semibold text-slate-800">Món bán chạy (top 10)</h3>
+        <h3 className="mb-4 font-semibold text-slate-800">Món bán chạy (top {appliedTopN})</h3>
         {topDishes.isLoading ? (
           <Spinner />
         ) : topDishes.isError ? (
           <EmptyState error message={getErrorMessage(topDishes.error, 'Không tải được món bán chạy.')} />
         ) : !topDishes.data || topDishes.data.items.length === 0 ? (
-          <EmptyState message="Chưa có món nào được bán trong khoảng này." />
+          <EmptyState message="Không có dữ liệu trong khoảng thời gian đã chọn." />
         ) : (
           <ol className="space-y-3">
             {topDishes.data.items.map((dish, index) => (

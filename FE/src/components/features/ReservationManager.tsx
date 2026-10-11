@@ -59,6 +59,9 @@ export default function ReservationManager({ onCheckedIn }: ReservationManagerPr
         .search({ ...filters, page, page_size: PAGE_SIZE, sort_by: 'reserved_at', sort_order: 'asc' })
         .then((res) => res.data),
     placeholderData: keepPreviousData,
+    // làm tươi 30 giây để thấy yêu cầu đặt bàn mới của khách
+    refetchInterval: 30_000,
+    staleTime: 0,
   });
 
   const { data: detail, isLoading: isDetailLoading } = useQuery({
@@ -69,10 +72,18 @@ export default function ReservationManager({ onCheckedIn }: ReservationManagerPr
 
   // bàn đủ chỗ trong khung giờ, chỉ cần khi xác nhận hoặc đổi bàn lúc nhận
   const needsTables = action?.kind === 'confirm' || action?.kind === 'checkin';
-  const { data: availableTables, isLoading: isTablesLoading } = useQuery({
+  const {
+    data: availableTables,
+    isLoading: isTablesLoading,
+    isError: isTablesError,
+    error: tablesError,
+  } = useQuery({
     queryKey: ['reservation-tables', action?.reservation.id],
     queryFn: () => reservationApi.availableTables(action!.reservation.id).then((res) => res.data),
     enabled: needsTables && action !== null,
+    // bàn trống thay đổi liên tục nên mỗi lần mở hộp thoại phải lấy lại
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const refresh = () => {
@@ -199,12 +210,25 @@ export default function ReservationManager({ onCheckedIn }: ReservationManagerPr
         </button>
       </form>
 
+      {/* BE chỉ mặc định lấy hôm nay khi chưa có tiêu chí nào; chọn trạng thái, ngày, mã hoặc từ khóa thì tìm trên mọi ngày */}
+      {!Object.values(filters).some(Boolean) && (
+        <p className="border-b border-slate-200 bg-amber-50 px-6 py-2 text-xs text-amber-800">
+          Đang hiển thị đặt bàn của hôm nay. Chọn trạng thái, ngày, mã hoặc từ khóa để xem các ngày khác.
+        </p>
+      )}
+
       {isLoading ? (
         <Spinner />
       ) : isError ? (
         <EmptyState error message="Không tải được danh sách đặt bàn." />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState message="Không có đặt bàn nào phù hợp." />
+        <EmptyState
+          message={
+            Object.values(filters).some(Boolean)
+              ? 'Không tìm thấy đặt bàn nào thỏa mãn tiêu chí tìm kiếm.'
+              : 'Hôm nay chưa có đặt bàn nào.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -364,7 +388,10 @@ export default function ReservationManager({ onCheckedIn }: ReservationManagerPr
                   ))}
                 </select>
               )}
-              {!isTablesLoading && availableTables?.length === 0 && (
+              {isTablesError && (
+                <span className="mt-1 block text-xs text-red-600">{getFormErrorMessage(tablesError, 'Không tải được danh sách bàn trống.')}</span>
+              )}
+              {!isTablesLoading && !isTablesError && availableTables?.length === 0 && (
                 <span className="mt-1 block text-xs text-red-600">Không còn bàn phù hợp trong khung giờ này.</span>
               )}
             </FormField>

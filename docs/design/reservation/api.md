@@ -7,7 +7,7 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 | Method | URL | Vai trò | UC | Request | Response (`data`) |
 |---|---|---|---|---|---|
 | GET | `/reservations/availability` | Công khai | UC013 | Query `AvailabilityRequest` | 200 `AvailabilityResponse` |
-| POST | `/reservations` | Công khai (token tùy chọn) | UC013 | `ReservationCreateRequest` (+ `Idempotency-Key`) | 201 `ReservationResponse` |
+| POST | `/reservations` | Công khai (token tùy chọn) | UC013 | `ReservationCreateRequest` | 201 `ReservationResponse` |
 | GET | `/reservations` | `WAITER`, `MANAGER` | UC007, UC014 | Query `ReservationSearchRequest` + phân trang | 200 `{items: ReservationSummaryResponse[], meta}` |
 | GET | `/reservations/{id}` | `WAITER`, `MANAGER` | UC014 | — | 200 `ReservationResponse` |
 | GET | `/reservations/{id}/available-tables` | `WAITER`, `MANAGER` | UC014 | — | 200 `TableBriefResponse[]` |
@@ -92,7 +92,7 @@ sequenceDiagram
     participant Handler as GlobalExceptionHandler
 
     Khach->>Ctrl: POST /reservations (ReservationCreateRequest)
-    Ctrl->>Ctrl: @Idempotent, @Valid kiểm tra request
+    Ctrl->>Ctrl: @Valid kiểm tra request
 
     alt Request không hợp lệ
         Ctrl->>Handler: MethodArgumentNotValidException

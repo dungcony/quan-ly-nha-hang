@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyRound, Mail, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { authApi } from '@/api/authApi';
-import type { ErrorResponse } from '@/utils/apiTypes';
+import { getFormErrorMessage } from '@/utils/apiError';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -20,12 +20,8 @@ export default function ForgotPasswordPage() {
       await authApi.forgotPassword({ email });
       setIsSuccess(true);
     } catch (err: unknown) {
-      const errorData = err as ErrorResponse;
-      if (errorData?.error?.message) {
-        setErrorMessage(errorData.error.message);
-      } else {
-        setErrorMessage('Không thể gửi yêu cầu. Vui lòng kiểm tra lại địa chỉ email.');
-      }
+      // lỗi theo trường (vd email sai định dạng) được ưu tiên hơn thông báo chung
+      setErrorMessage(getFormErrorMessage(err, 'Không thể gửi yêu cầu. Vui lòng kiểm tra lại địa chỉ email.'));
     } finally {
       setIsLoading(false);
     }

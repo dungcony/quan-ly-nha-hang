@@ -12,6 +12,7 @@ public record DishSummaryResponse(
         String categoryName,
         long price,
         String unit,
+        String description,
         String imageUrl,
         DishStatus status) {
 }

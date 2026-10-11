@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Users } from 'lucide-react';
@@ -26,16 +27,37 @@ const STATUS_DOT: Record<TableStatus, string> = {
   OUT_OF_SERVICE: 'bg-slate-500',
 };
 
+const filterInput =
+  'rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500';
+
 export default function PosTablesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const isCashier = user?.role === 'CASHIER';
 
+  // bộ lọc tìm bàn (UC007): tên, khu vực, trạng thái, sức chứa tối thiểu
+  const [filterName, setFilterName] = useState('');
+  const [filterZone, setFilterZone] = useState<TableZone | ''>('');
+  const [filterStatus, setFilterStatus] = useState<TableStatus | ''>('');
+  const [filterMinCapacity, setFilterMinCapacity] = useState('');
+  const hasFilters = !!(filterName || filterZone || filterStatus || filterMinCapacity);
+
   // làm tươi 10 giây để thấy bàn vừa được đặt hoặc vừa thanh toán
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['tables', 'pos'],
-    queryFn: () => tableApi.searchTables({ page_size: 100, sort_by: 'name', sort_order: 'asc' }).then((res) => res.data.items),
+    queryKey: ['tables', 'pos', filterName, filterZone, filterStatus, filterMinCapacity],
+    queryFn: () =>
+      tableApi
+        .searchTables({
+          name: filterName.trim() || undefined,
+          zone: filterZone || undefined,
+          status: filterStatus || undefined,
+          min_capacity: filterMinCapacity ? Number(filterMinCapacity) : undefined,
+          page_size: 100,
+          sort_by: 'name',
+          sort_order: 'asc',
+        })
+        .then((res) => res.data.items),
     refetchInterval: 10_000,
     staleTime: 0,
   });
@@ -96,12 +118,45 @@ export default function PosTablesPage() {
         </div>
       </div>
 
+      <div className="mb-6 flex flex-wrap gap-3">
+        <input
+          className={filterInput}
+          placeholder="Tìm theo tên bàn..."
+          value={filterName}
+          onChange={(e) => setFilterName(e.target.value)}
+        />
+        <select className={filterInput} value={filterZone} onChange={(e) => setFilterZone(e.target.value as TableZone | '')}>
+          <option value="">Mọi khu vực</option>
+          {(Object.keys(ZONE_LABELS) as TableZone[]).map((z) => (
+            <option key={z} value={z}>
+              {ZONE_LABELS[z]}
+            </option>
+          ))}
+        </select>
+        <select className={filterInput} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as TableStatus | '')}>
+          <option value="">Mọi trạng thái</option>
+          {(Object.keys(TABLE_STATUS_LABELS) as TableStatus[]).map((st) => (
+            <option key={st} value={st}>
+              {TABLE_STATUS_LABELS[st]}
+            </option>
+          ))}
+        </select>
+        <input
+          className={cn(filterInput, 'w-44')}
+          type="number"
+          min={1}
+          placeholder="Sức chứa tối thiểu"
+          value={filterMinCapacity}
+          onChange={(e) => setFilterMinCapacity(e.target.value)}
+        />
+      </div>
+
       {isLoading ? (
         <Spinner label="Đang tải sơ đồ bàn..." />
       ) : isError ? (
         <EmptyState error message="Không tải được sơ đồ bàn." />
       ) : zones.length === 0 ? (
-        <EmptyState message="Chưa có bàn nào." />
+        <EmptyState message={hasFilters ? 'Không tìm thấy bàn nào thỏa mãn tiêu chí tìm kiếm.' : 'Chưa có bàn nào.'} />
       ) : (
         <div className="space-y-8">
           {zones.map((zone) => (

@@ -11,6 +11,7 @@ import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -74,5 +75,15 @@ class GlobalExceptionHandlerTest {
                 .getAnnotation(org.springframework.web.bind.annotation.ExceptionHandler.class);
 
         assertThat(registered.value()).contains(HttpMediaTypeNotSupportedException.class, MissingServletRequestPartException.class);
+    }
+
+    @Test
+    void handleUploadTooLarge_returns_400_file_too_large_instead_of_500() {
+        ResponseEntity<ErrorResponse> response = handler.handleUploadTooLarge(
+                new MaxUploadSizeExceededException(5 * 1024 * 1024), new MockHttpServletRequest());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().error().code()).isEqualTo("FILE_TOO_LARGE");
+        assertThat(response.getBody().error().message()).contains("5MB");
     }
 }

@@ -1,6 +1,5 @@
 package com.restaurant.modules.reservation.controller;
 
-import com.restaurant.common.idempotency.Idempotent;
 import com.restaurant.common.response.ApiResponse;
 import com.restaurant.common.response.PageRequestParams;
 import com.restaurant.common.response.PageResponse;
@@ -50,7 +49,6 @@ public class ReservationController {
 
     // Chỉ gắn tài khoản khi người đặt là khách hàng đã đăng nhập; token của nhân viên không biến đặt bàn thành của nhân viên
     @PostMapping
-    @Idempotent
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ReservationResponse> createReservation(@Valid @RequestBody ReservationCreateRequest request) {
         UUID customerId = SecurityContextUtil.hasRole("CUSTOMER") ? SecurityContextUtil.currentUserId() : null;

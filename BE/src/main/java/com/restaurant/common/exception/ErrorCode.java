@@ -59,20 +59,17 @@ public enum ErrorCode {
     // Vi phạm ràng buộc duy nhất.
     DUPLICATE(HttpStatus.CONFLICT, "Bản ghi đã tồn tại."),
 
-    // Gọi quá nhiều lần.
-    RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Bạn thao tác quá nhanh, vui lòng thử lại sau."),
-
     // Phương thức HTTP không được hỗ trợ ở điểm cuối này. Do {@code GlobalExceptionHandler} phát.
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Phương thức không được hỗ trợ."),
 
     // Lỗi ngoài dự kiến. Không bao giờ đưa message gốc ra response.
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi xảy ra, vui lòng thử lại."),
 
-    // Yêu cầu trước đó với cùng {@code Idempotency-Key} đang được xử lý.
-    REQUEST_IN_PROGRESS(HttpStatus.CONFLICT, "Yêu cầu trước đó đang được xử lý, vui lòng thử lại sau."),
-
     // Ảnh tải lên không phải png, gif, jpg, jpeg.
     FILE_TYPE_NOT_SUPPORTED(HttpStatus.BAD_REQUEST, "Chỉ chấp nhận ảnh png, gif, jpg hoặc jpeg."),
+
+    // Ảnh tải lên vượt giới hạn dung lượng của multipart (spring.servlet.multipart.max-file-size).
+    FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "Ảnh vượt quá dung lượng tối đa 5MB."),
 
     // ---------------------------------------------------------------------
     // Xác thực & tài khoản

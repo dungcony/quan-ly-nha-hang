@@ -1,36 +1,35 @@
-import { useState, useEffect } from 'react';
-import { ReceiptText } from 'lucide-react';
-import { myInvoiceApi, MyInvoiceResponse } from '@/api/myInvoiceApi';
+import { useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Eye, Printer, ReceiptText } from 'lucide-react';
+import { myInvoiceApi } from '@/api/myInvoiceApi';
+import InvoiceReceipt from '@/components/features/InvoiceReceipt';
+import EmptyState from '@/components/ui/EmptyState';
+import Modal from '@/components/ui/Modal';
+import Pagination from '@/components/ui/Pagination';
+import Spinner from '@/components/ui/Spinner';
+import { btnSecondary, iconBtn, tableHeadClass } from '@/components/ui/forms';
+import { formatDateTime, formatVnd } from '@/utils/format';
+import { PAYMENT_METHOD_LABELS } from '@/utils/labels';
+
+const PAGE_SIZE = 10;
 
 export default function MyInvoicesPage() {
-  const [invoices, setInvoices] = useState<MyInvoiceResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['my-invoices', page],
+    queryFn: () => myInvoiceApi.getMyInvoices({ page, page_size: PAGE_SIZE }).then((res) => res.data),
+    placeholderData: keepPreviousData,
+  });
 
-  const fetchInvoices = async () => {
-    try {
-      const res = await myInvoiceApi.getMyInvoices();
-      setInvoices(res.data.items);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const detail = useQuery({
+    queryKey: ['my-invoice', detailId],
+    queryFn: () => myInvoiceApi.getMyInvoiceDetail(detailId as string).then((res) => res.data),
+    enabled: !!detailId,
+  });
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'PAID') {
-      return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Đã thanh toán</span>;
-    }
-    return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">{status}</span>;
-  };
-
-  if (isLoading) {
-    return <div className="p-8 text-center text-slate-500">Đang tải danh sách hóa đơn...</div>;
-  }
+  const invoices = data?.items ?? [];
 
   return (
     <div className="w-full">
@@ -40,43 +39,72 @@ export default function MyInvoicesPage() {
           <p className="text-sm text-slate-500 mt-1">Danh sách các hóa đơn bạn đã thanh toán</p>
         </div>
 
-        <div className="p-6">
-          {invoices.length === 0 ? (
-            <div className="text-center py-12">
-              <ReceiptText className="size-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-900 mb-1">Chưa có hóa đơn nào</h3>
-              <p className="text-slate-500 text-sm">Bạn chưa có lịch sử ăn uống tại nhà hàng.</p>
-            </div>
-          ) : (
+        {isLoading ? (
+          <Spinner label="Đang tải danh sách hóa đơn..." />
+        ) : isError ? (
+          <EmptyState error message="Không tải được danh sách hóa đơn. Vui lòng thử lại sau." />
+        ) : invoices.length === 0 ? (
+          <div className="text-center py-12 px-6">
+            <ReceiptText className="size-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900 mb-1">Chưa có hóa đơn nào</h3>
+            <p className="text-slate-500 text-sm">Bạn chưa có hóa đơn nào gắn với tài khoản này.</p>
+          </div>
+        ) : (
+          <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-y border-slate-200">
+                <thead className={tableHeadClass}>
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Mã Hóa Đơn</th>
-                    <th className="px-4 py-3 font-semibold">Ngày tạo</th>
-                    <th className="px-4 py-3 font-semibold text-right">Tổng tiền</th>
-                    <th className="px-4 py-3 font-semibold text-center">Trạng thái</th>
+                    <th className="px-4 py-3">Mã hóa đơn</th>
+                    <th className="px-4 py-3">Bàn</th>
+                    <th className="px-4 py-3">Thanh toán lúc</th>
+                    <th className="px-4 py-3">Phương thức</th>
+                    <th className="px-4 py-3 text-right">Tổng tiền</th>
+                    <th className="px-4 py-3 text-right">Chi tiết</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-mono font-medium text-slate-900">{inv.code}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(inv.created_at).toLocaleString('vi-VN')}</td>
-                      <td className="px-4 py-3 text-right font-bold text-amber-700">
-                        {inv.total_amount.toLocaleString('vi-VN')} đ
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {getStatusBadge(inv.status)}
+                      <td className="px-4 py-3 text-slate-600">{inv.table_name}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatDateTime(inv.paid_at)}</td>
+                      <td className="px-4 py-3 text-slate-600">{PAYMENT_METHOD_LABELS[inv.payment_method]}</td>
+                      <td className="px-4 py-3 text-right font-bold text-amber-700">{formatVnd(inv.total_amount)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button type="button" className={iconBtn} onClick={() => setDetailId(inv.id)} aria-label={`Xem hóa đơn ${inv.code}`}>
+                          <Eye className="size-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+            <Pagination meta={data?.meta} onPageChange={setPage} />
+          </>
+        )}
       </div>
+
+      <Modal
+        open={!!detailId}
+        title="Chi tiết hóa đơn"
+        onClose={() => setDetailId(null)}
+        footer={
+          <button type="button" className={btnSecondary} onClick={() => window.print()} disabled={!detail.data}>
+            <Printer className="size-4" />
+            In hóa đơn
+          </button>
+        }
+      >
+        {detail.isLoading ? (
+          <Spinner />
+        ) : detail.isError || !detail.data ? (
+          <EmptyState error message="Không tải được chi tiết hóa đơn." />
+        ) : (
+          <InvoiceReceipt invoice={detail.data} />
+        )}
+      </Modal>
     </div>
   );
 }

@@ -14,11 +14,14 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  // liên kết hết hạn hoặc đã dùng thì gợi ý gửi lại yêu cầu (UC004 luồng ngoại lệ)
+  const [isTokenError, setIsTokenError] = useState(false);
 
   // xử lý gửi yêu cầu đặt lại mật khẩu mới
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setIsTokenError(false);
 
     if (!token) {
       setErrorMessage('Không tìm thấy mã token đặt lại mật khẩu trong liên kết.');
@@ -45,11 +48,12 @@ export default function ResetPasswordPage() {
       await authApi.resetPassword({
         token,
         new_password: newPassword,
-        confirm_password: confirmPassword,
+        confirm_new_password: confirmPassword,
       });
       setIsSuccess(true);
     } catch (err: unknown) {
       const errorData = err as ErrorResponse;
+      setIsTokenError(errorData?.error?.code === 'AUTH_CODE_INVALID');
       if (errorData?.error?.fields && errorData.error.fields.length > 0) {
         const fieldDetails = errorData.error.fields.map((f) => f.message).join('. ');
         setErrorMessage(fieldDetails);
@@ -142,7 +146,14 @@ export default function ResetPasswordPage() {
         {errorMessage && (
           <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
             <AlertCircle className="size-5 shrink-0 mt-0.5" />
-            <span className="text-pretty">{errorMessage}</span>
+            <span className="text-pretty">
+              {errorMessage}{' '}
+              {isTokenError && (
+                <Link to="/forgot-password" className="font-semibold underline">
+                  Yêu cầu liên kết mới
+                </Link>
+              )}
+            </span>
           </div>
         )}
 

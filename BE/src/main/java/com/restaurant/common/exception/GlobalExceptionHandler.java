@@ -19,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -90,6 +91,18 @@ public class GlobalExceptionHandler {
         var body = new ErrorResponse(false,
                 new ErrorResponse.ErrorBody("VALIDATION_ERROR", "Dữ liệu gửi lên không hợp lệ.", fields, null));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    // Tệp tải lên vượt giới hạn multipart → 400 FILE_TOO_LARGE, không phải 500.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        ErrorCode errorCode = ErrorCode.FILE_TOO_LARGE;
+        request.setAttribute(com.restaurant.common.logging.RequestLoggingFilter.ATTR_ERROR_DETAIL,
+                errorCode.getCode() + ": " + ex.getMessage());
+        log.debug("Tệp quá lớn tại {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        var body = new ErrorResponse(false,
+                new ErrorResponse.ErrorBody(errorCode.getCode(), errorCode.getDefaultMessage()));
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(body);
     }
 
     // Đường dẫn không tồn tại → 404 NOT_FOUND, không phải 500.

@@ -9,7 +9,7 @@ import Spinner from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 import { btnPrimary, btnSecondary, iconBtn, inputClass, tableHeadClass } from '@/components/ui/forms';
-import { getFormErrorMessage } from '@/utils/apiError';
+import { getErrorMessage, getFormErrorMessage } from '@/utils/apiError';
 import { formatDateTime, formatVnd } from '@/utils/format';
 import { PAYMENT_METHOD_LABELS } from '@/utils/labels';
 import type { PaymentMethod } from '@/utils/apiTypes';
@@ -32,7 +32,7 @@ export default function InvoiceHistory({ scope }: InvoiceHistoryProps) {
   // bản in lại thay thế bản đang xem để khung in hiện dòng "BẢN IN LẠI"
   const [reprinted, setReprinted] = useState<InvoiceDetail | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['invoices', scope, filters, page],
     queryFn: () => invoiceApi.search({ ...filters, page, page_size: PAGE_SIZE, sort_by: 'paid_at', sort_order: 'desc' }).then((res) => res.data),
     placeholderData: keepPreviousData,
@@ -60,8 +60,11 @@ export default function InvoiceHistory({ scope }: InvoiceHistoryProps) {
     setReprinted(null);
   };
 
+  const invalidRange = !!draft.from_date && !!draft.to_date && draft.from_date > draft.to_date;
+
   const applyFilters = (e: FormEvent) => {
     e.preventDefault();
+    if (invalidRange) return;
     setPage(1);
     setFilters({
       code: draft.code.trim() || undefined,
@@ -126,18 +129,27 @@ export default function InvoiceHistory({ scope }: InvoiceHistoryProps) {
             </option>
           ))}
         </select>
-        <button type="submit" className={btnSecondary}>
+        <button type="submit" className={btnSecondary} disabled={invalidRange}>
           <Search className="size-4" />
           Tìm
         </button>
       </form>
+      {invalidRange && <p className="border-b border-slate-200 px-6 py-2 text-sm text-red-600">Ngày bắt đầu không được sau ngày kết thúc.</p>}
 
       {isLoading ? (
         <Spinner />
       ) : isError ? (
-        <EmptyState error message="Không tải được danh sách hóa đơn." />
+        <EmptyState error message={getErrorMessage(error, 'Không tải được danh sách hóa đơn.')} />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState message="Không có hóa đơn nào phù hợp." />
+        <EmptyState
+          message={
+            Object.values(filters).some(Boolean)
+              ? 'Không tìm thấy hóa đơn nào thỏa mãn tiêu chí tìm kiếm.'
+              : scope === 'today'
+                ? 'Hôm nay chưa có hóa đơn nào.'
+                : 'Chưa có hóa đơn nào.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

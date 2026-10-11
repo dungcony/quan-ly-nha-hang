@@ -13,7 +13,7 @@ Trạng thái đặt bàn: `PENDING` → `CONFIRMED` → `CHECKED_IN`; nhánh ph
 - **Kiểm tra bàn trống** — `GET /reservations/availability?reserved_at=...&guest_count=...` (công khai): hệ thống kiểm tra giờ hợp lệ và
   còn bàn phù hợp (luồng 3–4). Trả `{available, suggestions[]}`; khi `available = false`, `suggestions` là tối đa 4 khung giờ gần nhất
   còn bàn (luồng 4b, A5). Client gọi bước này khi khách chọn xong ngày, giờ, số khách.
-- **Kịch bản chính (201)** — `POST /reservations` (công khai, có `Idempotency-Key`): Khách nhập `guest_name`, `phone`, `email` (tùy chọn),
+- **Kịch bản chính (201)** — `POST /reservations` (công khai): Khách nhập `guest_name`, `phone`, `email` (tùy chọn),
   `reserved_at`, `guest_count`, `preferred_zone` (tùy chọn), `note` (tùy chọn). Khách hàng đã đăng nhập (gửi Bearer token) được client điền sẵn
   từ `GET /users/me` và đặt bàn được gắn `customer_id`. Hệ thống kiểm tra lại giờ và bàn trống, sinh mã, tạo đặt bàn `PENDING`, trả mã đặt bàn
   và gửi email xác nhận đã nhận yêu cầu nếu có `email` (luồng 5–7).
@@ -30,11 +30,12 @@ Trạng thái đặt bàn: `PENDING` → `CONFIRMED` → `CHECKED_IN`; nhánh ph
 ### 1.2 Quản lý đặt bàn (UC014)
 
 - **Xem / Tìm kiếm (R, S)** — `GET /reservations` (WAITER, MANAGER): tiêu chí của Bảng 2-16: `keyword` (tên khách hoặc số điện thoại, chứa chuỗi),
-  `code` (mã đặt bàn), `date` (ngày đặt, theo múi giờ nhà hàng), `status`. Không truyền `date`, `code`, `keyword` thì mặc định `date` = hôm nay (A24).
+  `code` (mã đặt bàn), `date` (ngày đặt, theo múi giờ nhà hàng), `status`. Không truyền `date`, `status`, `code`, `keyword` thì mặc định `date` = hôm nay (A24).
   Chi tiết `GET /reservations/{id}` gồm thông tin khách, thời gian, số khách, bàn được gán, ghi chú, lý do hủy.
   - Không có đặt bàn nào → 200 `items: []` (luồng 2a).
 - **Xác nhận** — `GET /reservations/{id}/available-tables` rồi `PUT /reservations/{id}/confirm` với `table_id` (luồng 1–4):
   - `available-tables` trả bàn đủ sức chứa, không `OUT_OF_SERVICE`, không trùng giờ; xếp bàn cùng `preferred_zone` lên đầu, rồi sức chứa tăng dần (A4).
+    Dùng được cho đặt bàn `PENDING` (xếp bàn) và `CONFIRMED` (đổi bàn lúc nhận bàn, UC014 2a); với `CONFIRMED` chỉ trả bàn đang `AVAILABLE`. Trạng thái khác → 409 `RESERVATION_STATUS_INVALID`.
   - Xác nhận đổi `PENDING` → `CONFIRMED`, gán bàn, gửi email thông báo nếu có. Nếu giờ hẹn còn ≤ 60 phút và bàn đang `AVAILABLE` thì bàn sang `RESERVED` ngay
     (không đợi job).
   - Ngoại lệ: danh sách rỗng → client báo hết bàn; `PUT` khi không còn bàn → 409 `RESERVATION_NO_TABLE_AVAILABLE` (luồng 2a); bàn vừa được gán cho đặt bàn
@@ -80,7 +81,6 @@ Giả định "bây giờ" là 09/10/2026 09:00 (giờ Việt Nam), 6 bàn đủ
 | TC_RES_11 | Ngoại lệ | UC013 | Số khách ngoài 1–50 | `guest_count=0` hoặc `51` | 400 `VALIDATION_ERROR` |
 | TC_RES_12 | Ngoại lệ | UC013 | Số khách lớn hơn mọi bàn | `guest_count=50` khi bàn lớn nhất 8 chỗ | 409 `RESERVATION_NO_TABLE_AVAILABLE` |
 | TC_RES_13 | Ngoại lệ | UC013 | Hết bàn khi đặt | Như TC_RES_02 | 409 `RESERVATION_NO_TABLE_AVAILABLE`, `error.detail.suggestions` có giá trị |
-| TC_RES_14 | Luồng chuẩn | UC013 | Gửi lại cùng `Idempotency-Key` | Hai `POST` giống nhau | Lần hai trả lại đúng response lần một; chỉ có 1 bản ghi |
 | TC_RES_15 | Luồng chuẩn | UC013 | Mã đặt bàn tăng dần trong ngày | Hai đặt bàn liên tiếp cùng ngày | `DB20261009-001`, `DB20261009-002` |
 | TC_RES_16 | Luồng chuẩn | UC013 | `PENDING` không chiếm chỗ | Hai đặt bàn `PENDING` cùng giờ khi chỉ còn 1 bàn | Cả hai 201 |
 | TC_RES_17 | Luồng chuẩn | UC014 | Xem danh sách mặc định | Không tiêu chí | 200, chỉ đặt bàn hôm nay, `reserved_at` tăng dần khi `sort_order=asc` |

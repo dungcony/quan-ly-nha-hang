@@ -3,7 +3,7 @@ import { User, CalendarCheck, ReceiptText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function AccountLayout() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -17,10 +17,15 @@ export default function AccountLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  // lịch sử đặt bàn và hóa đơn chỉ dành cho Khách hàng; nhân viên chỉ có hồ sơ và đổi mật khẩu
   const navItems = [
     { name: 'Thông tin tài khoản', path: '/account/profile', icon: User },
-    { name: 'Lịch sử đặt bàn', path: '/account/reservations', icon: CalendarCheck },
-    { name: 'Lịch sử hóa đơn', path: '/account/invoices', icon: ReceiptText },
+    ...(user?.role === 'CUSTOMER'
+      ? [
+          { name: 'Lịch sử đặt bàn', path: '/account/reservations', icon: CalendarCheck },
+          { name: 'Lịch sử hóa đơn', path: '/account/invoices', icon: ReceiptText },
+        ]
+      : []),
   ];
 
   return (

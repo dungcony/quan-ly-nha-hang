@@ -46,8 +46,6 @@ Chạy nhanh trên Windows: chép `BE/.env.example` thành `BE/.env.local` (khô
 ở thư mục gốc repo. Script nạp các biến trên, tự sinh `JWT_SECRET` nếu để trống và chạy BE ở `:8080`. FE chạy riêng bằng
 `.\run-fe.ps1` (`:3000`). Mỗi script chạy trong terminal hiện tại, Ctrl+C để dừng.
 
-`/auth/*` giới hạn 5 yêu cầu/phút theo IP (`RateLimitProperties`), vượt thì nhận 429.
-
 ## Kiểm thử
 
 ```bash

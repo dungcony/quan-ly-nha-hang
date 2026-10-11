@@ -19,20 +19,10 @@ import type {
   ErrorResponse,
 } from '@/utils/apiTypes';
 import { cn } from '@/utils/cn';
-
-const ZONE_LABELS: Record<TableZone, string> = {
-  INDOOR: 'Trong nhà',
-  OUTDOOR: 'Ngoài trời',
-  VIP_ROOM: 'Phòng VIP',
-  SECOND_FLOOR: 'Tầng 2',
-};
-
-const STATUS_LABELS: Record<TableStatus, string> = {
-  AVAILABLE: 'Trống',
-  RESERVED: 'Đã đặt',
-  OCCUPIED: 'Đang phục vụ',
-  OUT_OF_SERVICE: 'Bảo trì',
-};
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
+import { getErrorMessage } from '@/utils/apiError';
+import { TABLE_STATUS_LABELS as STATUS_LABELS, ZONE_LABELS } from '@/utils/labels';
 
 const STATUS_COLORS: Record<TableStatus, string> = {
   AVAILABLE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -44,6 +34,7 @@ const STATUS_COLORS: Record<TableStatus, string> = {
 export default function TableManagement() {
   const { user } = useAuth();
   const isManager = user?.role === 'MANAGER';
+  const toast = useToast();
 
   const [tables, setTables] = useState<TableResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +44,9 @@ export default function TableManagement() {
   const [filterZone, setFilterZone] = useState<TableZone | ''>('');
   const [filterStatus, setFilterStatus] = useState<TableStatus | ''>('');
   const [filterName, setFilterName] = useState('');
+  const [filterMinCapacity, setFilterMinCapacity] = useState('');
+  const [deletingTable, setDeletingTable] = useState<TableResponse | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -78,7 +72,10 @@ export default function TableManagement() {
         name: filterName || undefined,
         zone: (filterZone as TableZone) || undefined,
         status: (filterStatus as TableStatus) || undefined,
+        min_capacity: filterMinCapacity ? Number(filterMinCapacity) : undefined,
         page_size: 100,
+        sort_by: 'name',
+        sort_order: 'asc',
       });
       setTables(res.data.items);
     } catch (err: unknown) {
@@ -94,7 +91,7 @@ export default function TableManagement() {
     // Thực tế có thể thiết lập setInterval ở đây để auto-refresh (polling) sơ đồ bàn mỗi 10s
     const interval = setInterval(fetchTables, 10000);
     return () => clearInterval(interval);
-  }, [filterZone, filterStatus, filterName]);
+  }, [filterZone, filterStatus, filterName, filterMinCapacity]);
 
   const handleOpenModal = (table?: TableResponse) => {
     setFormError(null);
@@ -148,6 +145,7 @@ export default function TableManagement() {
         };
         await tableApi.createTable(createData);
       }
+      toast.success(editingTable ? 'Đã cập nhật bàn' : 'Đã thêm bàn');
       handleCloseModal();
       fetchTables();
     } catch (err: unknown) {
@@ -162,16 +160,23 @@ export default function TableManagement() {
     }
   };
 
-  const handleDeleteTable = async (id: string, name: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa bàn "${name}" không?`)) return;
+  const handleDeleteTable = async () => {
+    if (!deletingTable) return;
+    setIsDeleting(true);
     try {
-      await tableApi.deleteTable(id);
+      await tableApi.deleteTable(deletingTable.id);
+      toast.success(`Đã xóa bàn ${deletingTable.name}`);
       fetchTables();
     } catch (err: unknown) {
-      const errorData = err as ErrorResponse;
-      alert(errorData?.error?.message || 'Không thể xóa bàn lúc này.');
+      // TABLE_IN_USE: bàn đang phục vụ hoặc còn đặt bàn chưa hoàn tất
+      toast.error(getErrorMessage(err, 'Không thể xóa bàn lúc này.'));
+    } finally {
+      setIsDeleting(false);
+      setDeletingTable(null);
     }
   };
+
+  const hasFilters = !!(filterName || filterZone || filterStatus || filterMinCapacity);
 
   // Gom nhóm bàn theo zone
   const groupedTables = tables.reduce((acc, table) => {
@@ -221,6 +226,14 @@ export default function TableManagement() {
               <option key={val} value={val}>{label}</option>
             ))}
           </select>
+          <input
+            type="number"
+            min={1}
+            placeholder="Sức chứa tối thiểu"
+            value={filterMinCapacity}
+            onChange={(e) => setFilterMinCapacity(e.target.value)}
+            className="w-44 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+          />
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as TableStatus | '')}
@@ -245,7 +258,7 @@ export default function TableManagement() {
         <div className="text-center py-12 text-slate-500 text-sm">Đang tải dữ liệu sơ đồ bàn...</div>
       ) : tables.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 text-slate-500 text-sm shadow-sm">
-          Không tìm thấy bàn nào phù hợp với điều kiện lọc.
+          {hasFilters ? 'Không tìm thấy bàn nào thỏa mãn tiêu chí tìm kiếm.' : 'Chưa có bàn nào.'}
         </div>
       ) : (
         <div className="space-y-8">
@@ -266,7 +279,7 @@ export default function TableManagement() {
                     <div
                       key={table.id}
                       className={cn(
-                        "relative group flex flex-col justify-between p-4 rounded-xl border transition-all duration-200 shadow-sm hover:shadow-md",
+                        "relative flex flex-col justify-between p-4 rounded-xl border transition-all duration-200 shadow-sm hover:shadow-md",
                         STATUS_COLORS[table.status]
                       )}
                     >
@@ -286,19 +299,23 @@ export default function TableManagement() {
                         )}
                       </div>
 
-                      {/* Hiển thị action khi hover (chỉ dành cho Manager) */}
+                      {/* nút luôn hiện để dùng được trên màn hình cảm ứng (chỉ dành cho Quản lý) */}
                       {isManager && (
-                        <div className="absolute inset-0 bg-slate-900/40 rounded-xl backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <div className="mt-3 flex justify-end gap-2">
                           <button
+                            type="button"
                             onClick={() => handleOpenModal(table)}
-                            className="p-2 bg-white text-slate-700 hover:text-amber-600 rounded-full shadow-sm hover:scale-110 transition-transform"
+                            className="p-2 bg-white/80 text-slate-700 hover:text-amber-600 rounded-full shadow-sm"
+                            aria-label={`Sửa bàn ${table.name}`}
                             title="Sửa bàn"
                           >
                             <Edit2 className="size-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteTable(table.id, table.name)}
-                            className="p-2 bg-white text-slate-700 hover:text-red-600 rounded-full shadow-sm hover:scale-110 transition-transform"
+                            type="button"
+                            onClick={() => setDeletingTable(table)}
+                            className="p-2 bg-white/80 text-slate-700 hover:text-red-600 rounded-full shadow-sm"
+                            aria-label={`Xóa bàn ${table.name}`}
                             title="Xóa bàn"
                           >
                             <Trash2 className="size-4" />
@@ -313,6 +330,17 @@ export default function TableManagement() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deletingTable !== null}
+        title="Xóa bàn"
+        message={`Xóa bàn "${deletingTable?.name ?? ''}"? Bàn đang phục vụ hoặc còn đặt bàn chưa hoàn tất sẽ không xóa được.`}
+        confirmLabel="Xóa"
+        danger
+        loading={isDeleting}
+        onConfirm={handleDeleteTable}
+        onCancel={() => setDeletingTable(null)}
+      />
 
       {/* Modal form */}
       {isModalOpen && (
@@ -393,7 +421,7 @@ export default function TableManagement() {
                     ) : (
                       <>
                         <option value="AVAILABLE">Trống (Sẵn sàng)</option>
-                        <option value="OUT_OF_SERVICE">Bảo trì (Khóa bàn)</option>
+                        <option value="OUT_OF_SERVICE">Tạm khóa (không nhận khách)</option>
                       </>
                     )}
                   </select>
