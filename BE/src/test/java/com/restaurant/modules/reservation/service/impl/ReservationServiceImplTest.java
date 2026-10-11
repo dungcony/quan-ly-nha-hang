@@ -296,13 +296,50 @@ class ReservationServiceImplTest {
     }
 
     @Test
-    void findAvailableTables_only_for_a_pending_reservation() {
+    void findAvailableTables_for_a_confirmed_reservation_lists_only_tables_ready_to_seat_now() {
         Reservation r = reservation(ReservationStatus.CONFIRMED, EVENING, table6.id());
+        TableBriefResponse ready = new TableBriefResponse(UUID.randomUUID(), "O1", TableZone.OUTDOOR, 4, TableStatus.AVAILABLE);
+        TableBriefResponse heldForOthers = new TableBriefResponse(UUID.randomUUID(), "O2", TableZone.OUTDOOR, 4, TableStatus.RESERVED);
+        TableBriefResponse occupied = new TableBriefResponse(UUID.randomUUID(), "O3", TableZone.OUTDOOR, 4, TableStatus.OCCUPIED);
+        when(reservationRepository.findById(r.getId())).thenReturn(Optional.of(r));
+        when(tableService.listBookableTables(4)).thenReturn(List.of(ready, heldForOthers, occupied, table6));
+        when(reservationRepository.findBusyTableIds(EVENING, EVENING.plus(Duration.ofMinutes(120)))).thenReturn(Set.of(table6.id()));
+
+        List<TableBriefResponse> tables = service.findAvailableTables(r.getId());
+
+        assertThat(tables).extracting(TableBriefResponse::name).containsExactly("O1");
+    }
+
+    @Test
+    void findAvailableTables_rejects_a_reservation_that_is_already_checked_in_or_closed() {
+        Reservation r = reservation(ReservationStatus.CHECKED_IN, EVENING, table6.id());
         when(reservationRepository.findById(r.getId())).thenReturn(Optional.of(r));
 
         assertThatThrownBy(() -> service.findAvailableTables(r.getId()))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("RESERVATION_STATUS_INVALID");
+    }
+
+    @Test
+    void searchReservations_defaults_to_today_only_when_no_criteria_is_given() {
+        var none = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest(null, null, null, null);
+        var blank = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest(" ", " ", null, null);
+
+        assertThat(ReservationServiceImpl.defaultsToToday(none)).isTrue();
+        assertThat(ReservationServiceImpl.defaultsToToday(blank)).isTrue();
+    }
+
+    @Test
+    void searchReservations_with_only_a_status_looks_across_all_dates() {
+        var byStatus = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest(null, null, null, ReservationStatus.PENDING);
+        var byDate = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest(null, null, java.time.LocalDate.of(2026, 10, 10), null);
+        var byCode = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest(null, "DB20261009-001", null, null);
+        var byKeyword = new com.restaurant.modules.reservation.dto.request.ReservationSearchRequest("an", null, null, null);
+
+        assertThat(ReservationServiceImpl.defaultsToToday(byStatus)).isFalse();
+        assertThat(ReservationServiceImpl.defaultsToToday(byDate)).isFalse();
+        assertThat(ReservationServiceImpl.defaultsToToday(byCode)).isFalse();
+        assertThat(ReservationServiceImpl.defaultsToToday(byKeyword)).isFalse();
     }
 
     // ---- xác nhận (UC014) ----

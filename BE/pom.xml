@@ -30,7 +30,6 @@
         <java.version>17</java.version>
         <spring-modulith.version>2.1.1</spring-modulith.version>
         <jjwt.version>0.12.6</jjwt.version>
-        <bucket4j.version>8.10.1</bucket4j.version>
         <dotenv.version>3.0.0</dotenv.version>
         <mapstruct.version>1.6.3</mapstruct.version>
     </properties>
@@ -100,17 +99,6 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.bucket4j</groupId>
-            <artifactId>bucket4j-core</artifactId>
-            <version>${bucket4j.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
         </dependency>
 
         <dependency>

@@ -5,7 +5,7 @@ import { reportApi } from '@/api/reportApi';
 import { reservationApi } from '@/api/reservationApi';
 import Spinner from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
-import { formatVnd, toIsoDate } from '@/utils/format';
+import { formatVnd, monthStartIso, todayIso } from '@/utils/format';
 
 function StatCard({
   title,
@@ -31,8 +31,8 @@ function StatCard({
 }
 
 export default function AdminDashboard() {
-  const today = toIsoDate(new Date());
-  const monthStart = toIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const today = todayIso();
+  const monthStart = monthStartIso();
 
   // làm tươi mỗi phút để số liệu trong ngày không bị cũ
   const refetchInterval = 60_000;

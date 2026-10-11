@@ -209,9 +209,12 @@ export default function PosPaymentPage() {
                 <input
                   className={darkInput}
                   type="number"
+                  inputMode="numeric"
                   min={0}
+                  step={1}
                   value={received}
-                  onChange={(e) => setReceived(e.target.value)}
+                  // VND không có phần thập phân (SRS 3.3) nên bỏ mọi ký tự không phải số
+                  onChange={(e) => setReceived(e.target.value.replace(/\D/g, ''))}
                   placeholder="Nhập số tiền"
                 />
                 <div className="flex flex-wrap gap-2">

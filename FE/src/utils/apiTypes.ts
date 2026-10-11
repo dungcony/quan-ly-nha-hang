@@ -119,12 +119,13 @@ export interface PasswordForgotRequest {
 export interface PasswordResetRequest {
   token: string;
   new_password: string;
-  confirm_password: string;
+  confirm_new_password: string;
 }
 
 // dữ liệu cập nhật thông tin cá nhân
 export interface ProfileUpdateRequest {
   full_name: string;
+  email: string;
   phone?: string;
   gender?: Gender;
   date_of_birth?: string;

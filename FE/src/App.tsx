@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import ProtectedRoute from '@/routes/ProtectedRoute';
+import GuestOrCustomerRoute from '@/routes/GuestOrCustomerRoute';
 
 // Layouts
 import CustomerLayout from '@/layouts/CustomerLayout';
@@ -21,7 +22,6 @@ import VerifyEmailPage from '@/pages/Auth/VerifyEmailPage';
 import ProfilePage from '@/pages/Profile/ProfilePage';
 import MyReservationsPage from '@/pages/Profile/MyReservationsPage';
 import MyInvoicesPage from '@/pages/Profile/MyInvoicesPage';
-import ModuleDetailPage from '@/pages/Modules/ModuleDetailPage';
 
 // Admin Pages
 import AdminDashboard from '@/pages/Admin/AdminDashboard';
@@ -60,16 +60,19 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/menu" element={<MenuPage />} />
-            <Route path="/reservations" element={<ReservationPage />} />
+            <Route element={<GuestOrCustomerRoute />}>
+              <Route path="/reservations" element={<ReservationPage />} />
+            </Route>
             
             <Route path="/account" element={<AccountLayout />}>
               <Route index element={<Navigate to="/account/profile" replace />} />
               <Route path="profile" element={<ProfilePage />} />
-              <Route path="reservations" element={<MyReservationsPage />} />
-              <Route path="invoices" element={<MyInvoicesPage />} />
+              <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
+                <Route path="reservations" element={<MyReservationsPage />} />
+                <Route path="invoices" element={<MyInvoicesPage />} />
+              </Route>
             </Route>
 
-            <Route path="/modules/:slug" element={<ModuleDetailPage />} />
           </Route>
 
           {/* LUONG ADMIN */}

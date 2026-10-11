@@ -3,7 +3,7 @@ package com.restaurant.modules.user.dto.request;
 import com.restaurant.modules.user.enums.Gender;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -28,7 +28,7 @@ public record ProfileUpdateRequest(
         @Size(max = 255, message = "Email tối đa 255 ký tự")
         String email,
 
-        @Past(message = "Ngày sinh phải ở quá khứ")
+        @PastOrPresent(message = "Ngày sinh không được ở tương lai")
         LocalDate dateOfBirth,
 
         @Pattern(regexp = "\\d{10}", message = "Số điện thoại phải gồm 10 chữ số")

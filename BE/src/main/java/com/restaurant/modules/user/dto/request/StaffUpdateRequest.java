@@ -5,7 +5,7 @@ import com.restaurant.modules.user.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -28,7 +28,7 @@ public record StaffUpdateRequest(
         @NotNull(message = "Vai trò không được để trống")
         Role role,
 
-        @Past(message = "Ngày sinh phải ở quá khứ")
+        @PastOrPresent(message = "Ngày sinh không được ở tương lai")
         LocalDate dateOfBirth,
 
         @Pattern(regexp = "\\d{10}", message = "Số điện thoại phải gồm 10 chữ số")

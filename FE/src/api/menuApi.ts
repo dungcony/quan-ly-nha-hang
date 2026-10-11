@@ -16,12 +16,12 @@ export interface DishSummaryResponse {
   category_name: string;
   price: number;
   unit: string;
+  description: string | null;
   image_url: string | null;
   status: 'AVAILABLE' | 'OUT_OF_STOCK';
 }
 
 export interface DishDetailResponse extends DishSummaryResponse {
-  description: string | null;
   prep_time_minutes: number | null;
   created_at: string;
   updated_at: string;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { authApi } from '@/api/authApi';
@@ -11,6 +11,8 @@ export default function VerifyEmailPage() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  // StrictMode chạy effect hai lần ở môi trường dev; token chỉ dùng được một lần nên lần hai sẽ ghi đè kết quả thành lỗi
+  const verifiedToken = useRef<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -18,6 +20,9 @@ export default function VerifyEmailPage() {
       setErrorMsg('Liên kết xác thực không chứa mã token hợp lệ.');
       return;
     }
+
+    if (verifiedToken.current === token) return;
+    verifiedToken.current = token;
 
     // gửi token xác thực sang backend
     authApi
@@ -28,7 +33,11 @@ export default function VerifyEmailPage() {
       .catch((err: unknown) => {
         const errorData = err as ErrorResponse;
         setStatus('error');
-        setErrorMsg(errorData?.error?.message || 'Xác thực email thất bại hoặc mã đã hết hạn.');
+        setErrorMsg(
+          errorData?.error?.code === 'AUTH_CODE_INVALID'
+            ? 'Liên kết xác thực không hợp lệ, đã hết hạn hoặc đã được sử dụng. Bạn có thể gửi lại liên kết mới bên dưới.'
+            : errorData?.error?.message || 'Xác thực email thất bại hoặc liên kết đã hết hạn.'
+        );
       });
   }, [token]);
 

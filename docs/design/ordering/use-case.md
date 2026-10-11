@@ -11,12 +11,12 @@ polling (README mục 2.11).
 
 ### 1.1 Gọi món và gửi bếp (UC015)
 
-- **Mở đơn** — `POST /orders` (WAITER, có `Idempotency-Key`) với `table_id` (luồng 1–2): dùng khi bàn đang `AVAILABLE` (khách vãng lai). Hệ thống chuyển bàn sang `OCCUPIED`
+- **Mở đơn** — `POST /orders` (WAITER) với `table_id` (luồng 1–2): dùng khi bàn đang `AVAILABLE` (khách vãng lai). Hệ thống chuyển bàn sang `OCCUPIED`
   và tạo đơn `OPEN`, `waiter_id` = người gọi. Bàn có khách đặt trước thì đơn được mở ở lúc nhận bàn (module `reservation`), nên bàn `OCCUPIED` đã có đơn: client lấy bằng
   `GET /orders?status=OPEN&table_id=...`.
   - Ngoại lệ: bàn không `AVAILABLE` (đang phục vụ, đang giữ cho đặt bàn, tạm khóa) → 409 `ORDER_TABLE_NOT_OPENABLE`; `table_id` không tồn tại → 404 `NOT_FOUND`.
 - **Xem đơn hiện tại** — `GET /orders/{id}` (WAITER, CASHIER): các dòng món kèm trạng thái, tổng tạm tính (dòng `CANCELLED` không tính). Thực đơn lấy từ `GET /menu/dishes`.
-- **Gọi món và gửi bếp** — `POST /orders/{id}/items` (WAITER, có `Idempotency-Key`) với danh sách dòng `{dish_id, quantity, note}` (luồng 3–6). Giỏ tạm nằm ở client (A10); một lần gọi
+- **Gọi món và gửi bếp** — `POST /orders/{id}/items` (WAITER) với danh sách dòng `{dish_id, quantity, note}` (luồng 3–6). Giỏ tạm nằm ở client (A10); một lần gọi
   ghi tất cả dòng ở `PENDING` kèm `sent_at`, và hiện ngay trong hàng đợi của Bếp. Gọi thêm = gọi lại endpoint này với danh sách mới. Mọi `WAITER` thêm được vào đơn của bàn bất kỳ.
   - Ngoại lệ: món `OUT_OF_STOCK`/`DISCONTINUED` → 400 `DISH_NOT_ORDERABLE` (luồng 4a), `error.detail.dish_ids` liệt kê các món bị từ chối, không dòng nào được lưu;
     `quantity` ngoài 1–99, danh sách rỗng hoặc quá 50 dòng, ghi chú quá 255 ký tự → 400 `VALIDATION_ERROR` (luồng 4a); đơn đã đóng → 409 `ORDER_NOT_OPEN`;
@@ -62,7 +62,6 @@ polling (README mục 2.11).
 | TC_ORD_15 | Ngoại lệ | UC015 | Món không tồn tại | `dish_id` lạ | 404 `NOT_FOUND` |
 | TC_ORD_16 | Ngoại lệ | UC015 | Gọi món vào đơn đã đóng | Đơn `CLOSED` | 409 `ORDER_NOT_OPEN` |
 | TC_ORD_17 | Luồng chuẩn | UC015 | Giá món đổi sau khi gọi | Quản lý sửa giá sau khi gửi bếp | Dòng món cũ giữ `unit_price` cũ; dòng gọi sau lấy giá mới |
-| TC_ORD_18 | Luồng chuẩn | UC015 | Gửi lại cùng `Idempotency-Key` | Hai `POST` giống nhau | Lần hai trả lại response lần một; không nhân đôi dòng |
 | TC_ORD_19 | Luồng chuẩn | UC015 | Xem đơn của bàn | `GET /orders?status=OPEN&table_id=...` | 200, đúng đơn kèm các dòng và tổng tạm tính |
 | TC_ORD_20 | Luồng chuẩn | UC015 | Thu ngân xem đơn | Token `CASHIER` gọi `GET /orders/{id}` | 200 |
 | TC_ORD_21 | Ngoại lệ | UC015 | Thu ngân gọi món | Token `CASHIER` gọi `POST /orders/{id}/items` | 403 `FORBIDDEN` |

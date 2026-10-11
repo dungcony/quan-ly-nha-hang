@@ -26,7 +26,8 @@ export default function LoginPage() {
 
     try {
       const auth = await login({ email, password });
-      navigate(roleHomePath(auth.user.role));
+      // nhân viên mới do Quản lý cấp mật khẩu phải đổi mật khẩu ngay lần đầu (UC008)
+      navigate(auth.user.must_change_password ? '/account/profile#doi-mat-khau' : roleHomePath(auth.user.role));
     } catch (err: unknown) {
       const errorData = err as ErrorResponse;
       setNeedsVerification(errorData?.error?.code === 'AUTH_ACCOUNT_NOT_VERIFIED');

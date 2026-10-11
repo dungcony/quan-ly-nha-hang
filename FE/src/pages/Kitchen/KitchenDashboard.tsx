@@ -29,10 +29,10 @@ function KitchenCard({
   return (
     <div className={cn('overflow-hidden rounded-xl border-l-4 bg-white shadow-sm', border)}>
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
-        <span className="text-lg font-bold text-slate-800">Bàn {item.table_name}</span>
+        <span className="text-lg font-bold text-slate-800 2xl:text-3xl">Bàn {item.table_name}</span>
         <span
           className={cn(
-            'text-sm font-medium',
+            'text-sm font-medium 2xl:text-xl',
             waited >= LATE_MINUTES ? 'text-red-600' : waited >= WARN_MINUTES ? 'text-amber-600' : 'text-slate-500'
           )}
         >
@@ -40,17 +40,17 @@ function KitchenCard({
         </span>
       </div>
       <div className="space-y-3 p-4">
-        <p className="text-lg font-semibold text-slate-800">
+        <p className="text-lg font-semibold text-slate-800 2xl:text-3xl">
           {item.quantity} × {item.dish_name}
         </p>
-        {item.note && <p className="rounded bg-amber-50 px-2 py-1 text-sm italic text-amber-800">Ghi chú: {item.note}</p>}
+        {item.note && <p className="rounded bg-amber-50 px-2 py-1 text-sm italic text-amber-800 2xl:text-xl">Ghi chú: {item.note}</p>}
         {cooking && item.started_at && <p className="text-xs text-slate-500">Bắt đầu làm lúc {formatTime(item.started_at)}</p>}
         <button
           type="button"
           disabled={busy}
           onClick={() => onAction(item)}
           className={cn(
-            'flex w-full items-center justify-center gap-2 rounded-lg py-2.5 font-bold transition-colors disabled:opacity-50',
+            'flex w-full items-center justify-center gap-2 rounded-lg py-3 font-bold transition-colors disabled:opacity-50 2xl:py-4 2xl:text-2xl',
             cooking ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
           )}
         >
@@ -95,7 +95,7 @@ export default function KitchenDashboard() {
 
   const column = (title: string, icon: ReactNode, items: KitchenItem[], emptyText: string) => (
     <section>
-      <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-orange-900">
+      <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-orange-900 2xl:text-3xl">
         {icon}
         {title}
         <span className="rounded-full bg-orange-200 px-2.5 py-0.5 text-sm text-orange-800">{items.length}</span>
@@ -103,7 +103,7 @@ export default function KitchenDashboard() {
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-orange-200 bg-white/60 p-6 text-center text-sm text-slate-500">{emptyText}</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:gap-6">
           {items.map((item) => (
             <KitchenCard key={item.id} item={item} busy={actionMutation.isPending} onAction={(i) => actionMutation.mutate(i)} />
           ))}
@@ -116,7 +116,7 @@ export default function KitchenDashboard() {
     <div>
       <div className="mb-6 flex items-center gap-2 text-orange-900">
         <ChefHat className="size-6" />
-        <h2 className="text-2xl font-bold">Đơn hàng chờ xử lý</h2>
+        <h2 className="text-2xl font-bold 2xl:text-4xl">Đơn hàng chờ xử lý</h2>
         <span className="ml-2 text-sm text-slate-500">Tự làm tươi mỗi 5 giây</span>
       </div>
 
@@ -124,6 +124,8 @@ export default function KitchenDashboard() {
         <Spinner />
       ) : isError ? (
         <EmptyState error message="Không tải được hàng đợi bếp." />
+      ) : pending.length === 0 && cooking.length === 0 ? (
+        <EmptyState message="Không có món nào cần chế biến." />
       ) : (
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {column('Chờ chế biến', <Hourglass className="size-5" />, pending, 'Không có món nào đang chờ.')}

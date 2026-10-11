@@ -12,7 +12,7 @@ số nguyên. `VAT = làm tròn HALF_UP (thành tiền × vat-rate)`; `tổng ti
 
 - **Xem đơn cần thanh toán** — Thu ngân chọn bàn, client lấy đơn `OPEN` của bàn bằng `GET /orders?status=OPEN&table_id=...` (module `ordering`) rồi gọi
   `GET /billing/orders/{orderId}` (luồng 1–2): các dòng món không `CANCELLED` với đơn giá, số lượng, thành tiền, tổng tạm tính, VAT, tổng tiền và `unserved_count`.
-- **Thanh toán** — `POST /invoices` (CASHIER, có `Idempotency-Key`) với `order_id`, `payment_method`, `amount_received` (bắt buộc khi `CASH`), `note` (tùy chọn),
+- **Thanh toán** — `POST /invoices` (CASHIER) với `order_id`, `payment_method`, `amount_received` (bắt buộc khi `CASH`), `note` (tùy chọn),
   `confirm_unserved` (mặc định `false`) (luồng 3–6). Trong **một transaction**: khóa đơn (`FOR UPDATE`), tính tiền, lưu hóa đơn `PAID` kèm các dòng chụp, sinh mã `HD...`,
   đóng đơn (`CLOSED`), chuyển bàn `OCCUPIED` → `AVAILABLE`. Trả hóa đơn đầy đủ (201). Với `CARD`/`BANK_TRANSFER`, `amount_received` bị bỏ qua và lưu bằng tổng tiền, tiền thừa 0 (A12).
 - **In hóa đơn** — client in từ dữ liệu 201 hoặc `GET /invoices/{id}` (luồng 7–8, A14).
@@ -73,9 +73,8 @@ Giả định VAT 8%, múi giờ `Asia/Ho_Chi_Minh`.
 | TC_BILL_10 | Ngoại lệ | UC018 | Đơn không có món | Đơn `OPEN` chưa gọi món | 400 `INVOICE_ORDER_EMPTY` |
 | TC_BILL_11 | Ngoại lệ | UC018 | Còn món chưa phục vụ | 1 dòng `READY`, `confirm_unserved` mặc định | 409 `INVOICE_UNSERVED_ITEMS`, `detail.unserved_count` = 1; chưa có hóa đơn |
 | TC_BILL_12 | Luồng chuẩn | UC018 | Xác nhận trả khi còn món chưa phục vụ | Như trên, `confirm_unserved=true` | 201; đơn `CLOSED`; dòng chưa phục vụ không còn trong hàng đợi bếp |
-| TC_BILL_13 | Ngoại lệ | UC018 | Đơn đã thanh toán | Gọi lại với đơn `CLOSED` (khác `Idempotency-Key`) | 409 `ORDER_NOT_OPEN` |
+| TC_BILL_13 | Ngoại lệ | UC018 | Đơn đã thanh toán | Gọi lại với đơn `CLOSED` | 409 `ORDER_NOT_OPEN` |
 | TC_BILL_14 | Ngoại lệ | UC018 | Hai thu ngân cùng tính một bàn | Hai `POST /invoices` song song | Một 201, một 409 `ORDER_NOT_OPEN`; đúng 1 hóa đơn |
-| TC_BILL_15 | Luồng chuẩn | UC018 | Gửi lại cùng `Idempotency-Key` | Hai `POST` giống nhau | Lần hai trả lại hóa đơn lần một, không tạo hóa đơn thứ hai |
 | TC_BILL_16 | Ngoại lệ | UC018 | Đơn không tồn tại | `order_id` lạ | 404 `NOT_FOUND` |
 | TC_BILL_17 | Ngoại lệ | UC018 | Thanh toán lỗi giữa chừng | Giả lập lỗi khi chuyển bàn | Rollback: không có hóa đơn, đơn `OPEN`, bàn `OCCUPIED` |
 | TC_BILL_18 | Luồng chuẩn | UC018 | Hóa đơn gắn tài khoản | Đơn có `customer_id` | Hóa đơn có `customer_id` đó |

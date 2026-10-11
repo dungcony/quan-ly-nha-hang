@@ -1,6 +1,5 @@
 package com.restaurant.modules.order.controller;
 
-import com.restaurant.common.idempotency.Idempotent;
 import com.restaurant.common.response.ApiResponse;
 import com.restaurant.common.response.PageRequestParams;
 import com.restaurant.common.response.PageResponse;
@@ -28,7 +27,6 @@ import java.util.UUID;
 
 /**
  * Gọi món (UC015): nhân viên phục vụ mở đơn, gọi món, gửi bếp; Thu ngân chỉ xem đơn để thanh toán.
- * Các POST tạo mới nhận header {@code Idempotency-Key} để gửi lại do mạng chậm không nhân đôi món.
  */
 @RestController
 @RequestMapping("/orders")
@@ -39,7 +37,6 @@ public class OrderController {
 
     @PostMapping
     @PreAuthorize("hasRole('WAITER')")
-    @Idempotent
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<OrderResponse> openOrder(@Valid @RequestBody OrderOpenRequest request) {
         return ApiResponse.of(orderService.openOrderForWalkIn(SecurityContextUtil.currentUserId(), request));
@@ -59,7 +56,6 @@ public class OrderController {
 
     @PostMapping("/{id}/items")
     @PreAuthorize("hasRole('WAITER')")
-    @Idempotent
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<OrderResponse> addItems(@PathVariable UUID id, @Valid @RequestBody OrderItemsAddRequest request) {
         return ApiResponse.of(orderService.addItems(id, request));

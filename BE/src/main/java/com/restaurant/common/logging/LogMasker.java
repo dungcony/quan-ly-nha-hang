@@ -3,10 +3,8 @@ package com.restaurant.common.logging;
 import java.util.regex.Pattern;
 
 /**
- * Che dữ liệu nhạy cảm trước khi log được stream ra trang admin console
- * ({@link AdminLogStreamService}). Trang này chỉ yêu cầu ROLE_ADMIN, nhưng theo nguyên
- * tắc "riêng tư mặc định" của dự án, log không được để lộ nguyên văn email, mật khẩu,
- * OTP hay bearer token dù người xem là admin.
+ * Che dữ liệu nhạy cảm trước khi ghi log. Theo nguyên tắc "riêng tư mặc định" của dự án,
+ * log không được để lộ nguyên văn email, mật khẩu, OTP hay bearer token.
  *
  * <p>Chỉ che theo tên field JSON đã biết trước (password/otp/token/...) thay vì đoán mọi
  * chuỗi số — tránh che nhầm dữ liệu nghiệp vụ bình thường như {@code amount}.

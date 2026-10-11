@@ -1,28 +1,21 @@
 import axiosClient from '@/helpers/axiosClient';
 import type { ApiResponse, PageResponse } from '@/utils/apiTypes';
+import type { ReservationDetail, ReservationSummary } from '@/api/reservationApi';
 
-export interface MyReservationResponse {
-  id: string;
-  code: string;
-  guest_name: string;
-  phone: string;
-  reserved_at: string;
-  guest_count: number;
-  status: string;
-  note: string;
+export interface MyReservationQuery {
+  page?: number;
+  page_size?: number;
 }
 
 export const myReservationApi = {
-  // Lấy danh sách đặt bàn của tôi
-  getMyReservations: (): Promise<ApiResponse<PageResponse<MyReservationResponse>>> => {
-    return axiosClient.get('/me/reservations');
-  },
+  // đặt bàn của chính khách hàng, mới nhất trước
+  getMyReservations: (params?: MyReservationQuery): Promise<ApiResponse<PageResponse<ReservationSummary>>> =>
+    axiosClient.get('/me/reservations', { params }),
 
-  // Hủy đặt bàn của tôi
-  cancelMyReservation: (id: string): Promise<ApiResponse<null>> => {
-    return axiosClient.put(`/me/reservations/${id}/cancel`);
-  },
+  getMyReservation: (id: string): Promise<ApiResponse<ReservationDetail>> => axiosClient.get(`/me/reservations/${id}`),
+
+  // hủy được khi Chờ xác nhận hoặc Đã xác nhận và còn ít nhất 2 giờ đến giờ hẹn
+  cancelMyReservation: (id: string): Promise<ApiResponse<ReservationDetail>> => axiosClient.put(`/me/reservations/${id}/cancel`),
 };
 
 export default myReservationApi;
-

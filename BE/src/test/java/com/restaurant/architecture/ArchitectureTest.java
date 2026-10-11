@@ -143,8 +143,8 @@ class ArchitectureTest {
             })
             .allowEmptyShould(true);
 
-    // Rule 2.5: @Transactional của module nghiệp vụ chỉ đặt ở method của *ServiceImpl. Helper hạ tầng trong common
-    // (vd IdempotencyTransactionHelper dùng REQUIRES_NEW để tránh self-invocation) nằm ngoài phạm vi luật này.
+    // Rule 2.5: @Transactional của module nghiệp vụ chỉ đặt ở method của *ServiceImpl. Class hạ tầng trong common
+    // nằm ngoài phạm vi luật này.
     @ArchTest
     static final ArchRule transactional_methods_belong_to_service_impl = methods()
             .that().areAnnotatedWith(Transactional.class)

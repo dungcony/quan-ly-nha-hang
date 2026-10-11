@@ -58,7 +58,7 @@ vai trò và mã lỗi: xem [`../README.md`](../README.md).
     kết gửi tới email chứng tỏ người đó sở hữu email).
 - **Kịch bản ngoại lệ**:
   - Email sai định dạng → 400 `VALIDATION_ERROR`; không có tài khoản ứng với email → 404 `NOT_FOUND` (luồng 5a, SRS yêu cầu báo lỗi
-    dù việc này cho phép dò email; được chấp nhận và giảm thiểu bằng `RateLimitFilter`).
+    dù việc này cho phép dò email; được chấp nhận).
   - Token sai, quá 60 phút hoặc đã dùng → 400 `AUTH_CODE_INVALID` (luồng 7a).
   - Mật khẩu mới thiếu an toàn → 400 `VALIDATION_ERROR`; xác nhận không khớp → 400 `AUTH_PASSWORD_CONFIRM_MISMATCH`.
 - Tài khoản `LOCKED` vẫn đặt lại được mật khẩu nhưng vẫn không đăng nhập được.

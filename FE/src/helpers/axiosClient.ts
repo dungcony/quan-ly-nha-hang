@@ -1,6 +1,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type { ErrorResponse } from '@/utils/apiTypes';
 
+// sự kiện phát ra khi token bị server từ chối, AuthContext lắng nghe để đăng xuất
+export const AUTH_EXPIRED_EVENT = 'auth:expired';
+
 const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   headers: {
@@ -28,9 +31,15 @@ axiosClient.interceptors.response.use(
   (error: AxiosError<ErrorResponse>) => {
     // bóc tách dữ liệu lỗi trả về từ GlobalExceptionHandler
     const errorData = error.response?.data;
-    if (error.response?.status === 401) {
-      // xóa token khi phiên đăng nhập hết hạn hoặc không hợp lệ
-      localStorage.removeItem('access_token');
+    const status = error.response?.status;
+    const code = errorData?.error?.code;
+    // 401: phiên hết hạn hoặc token không hợp lệ; 403 AUTH_ACCOUNT_BLOCKED: tài khoản vừa bị khóa hoặc xóa khi đang đăng nhập
+    if (status === 401 || (status === 403 && code === 'AUTH_ACCOUNT_BLOCKED')) {
+      if (localStorage.getItem('access_token')) {
+        localStorage.removeItem('access_token');
+        // báo cho AuthContext đưa giao diện về trạng thái chưa đăng nhập
+        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      }
     }
     return Promise.reject(errorData || error);
   }

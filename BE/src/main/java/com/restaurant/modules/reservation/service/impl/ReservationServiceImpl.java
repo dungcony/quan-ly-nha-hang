@@ -132,9 +132,7 @@ public class ReservationServiceImpl implements ReservationService {
             String code = request.code().trim().toLowerCase();
             spec = spec.and((root, query, cb) -> cb.equal(cb.lower(root.get("code")), code));
         }
-        // Không có tiêu chí định danh nào thì xem đặt bàn của hôm nay
-        boolean noIdentifyingCriteria = request.date() == null && !StringUtils.hasText(request.code()) && !StringUtils.hasText(request.keyword());
-        LocalDate date = request.date() != null ? request.date() : (noIdentifyingCriteria ? LocalDate.now(clock) : null);
+        LocalDate date = request.date() != null ? request.date() : (defaultsToToday(request) ? LocalDate.now(clock) : null);
         if (date != null) {
             ZoneId zone = clock.getZone();
             Instant from = date.atStartOfDay(zone).toInstant();
@@ -148,6 +146,12 @@ public class ReservationServiceImpl implements ReservationService {
         return toSummaries(reservationRepository.findAll(spec, params.toPageable(SORTABLE_FIELDS, "reservedAt")));
     }
 
+    // Lọc theo trạng thái cũng là tiêu chí: nếu vẫn ép "hôm nay" thì Chờ xác nhận của các ngày khác sẽ biến mất khỏi danh sách
+    static boolean defaultsToToday(ReservationSearchRequest request) {
+        return request.date() == null && request.status() == null
+                && !StringUtils.hasText(request.code()) && !StringUtils.hasText(request.keyword());
+    }
+
     @Override
     @Transactional(readOnly = true)
     public ReservationResponse getReservation(UUID id) {
@@ -158,11 +162,14 @@ public class ReservationServiceImpl implements ReservationService {
     @Transactional(readOnly = true)
     public List<TableBriefResponse> findAvailableTables(UUID id) {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(ReservationServiceImpl::notFound);
-        reservationValidator.validateStatus(reservation, Set.of(ReservationStatus.PENDING));
+        reservationValidator.validateStatus(reservation, Set.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED));
         Set<UUID> busy = reservationRepository.findBusyTableIds(reservation.getReservedAt(), reservation.getReservedEnd());
+        // Đơn đã xác nhận được tìm bàn khác khi nhận bàn (UC014 2a), nên chỉ gợi ý bàn đang trống ngay lúc này
+        boolean seatingNow = reservation.getStatus() == ReservationStatus.CONFIRMED;
         // Sort ổn định: bàn cùng khu vực ưu tiên lên đầu, giữ nguyên thứ tự vừa khít (sức chứa tăng dần) trong mỗi nhóm
         return tableService.listBookableTables(reservation.getGuestCount()).stream()
                 .filter(table -> !busy.contains(table.id()))
+                .filter(table -> !seatingNow || table.status() == TableStatus.AVAILABLE)
                 .sorted(Comparator.comparing((TableBriefResponse table) -> table.zone() != reservation.getPreferredZone()))
                 .toList();
     }

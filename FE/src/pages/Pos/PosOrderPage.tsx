@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Minus, Plus, Search, Send, Trash2, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, CheckCheck, ChevronLeft, ChevronRight, Copy, Minus, Plus, Search, Send, Trash2, UtensilsCrossed } from 'lucide-react';
 import { menuApi, type DishSummaryResponse } from '@/api/menuApi';
 import { orderApi, type OrderDetail } from '@/api/orderApi';
 import { tableApi } from '@/api/tableApi';
@@ -27,11 +27,17 @@ const ITEM_TONE: Record<OrderItemStatus, BadgeTone> = {
   CANCELLED: 'red',
 };
 
+// mỗi dòng giỏ có khóa riêng để cùng một món có thể gọi nhiều dòng với ghi chú khác nhau (backend cho phép)
 interface CartLine {
+  key: string;
   dish: DishSummaryResponse;
   quantity: number;
   note: string;
 }
+
+const MENU_PAGE_SIZE = 100;
+let lineSeq = 0;
+const nextLineKey = () => `line-${++lineSeq}`;
 
 const darkInput =
   'w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500';
@@ -44,7 +50,8 @@ export default function PosOrderPage() {
 
   const [activeCategory, setActiveCategory] = useState('');
   const [search, setSearch] = useState('');
-  const [cart, setCart] = useState<Record<string, CartLine>>({});
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [menuPage, setMenuPage] = useState(1);
   // món vừa bị BE từ chối vì hết hoặc ngừng bán, tô đỏ trong thực đơn và giỏ
   const [blockedDishIds, setBlockedDishIds] = useState<string[]>([]);
 
@@ -76,11 +83,11 @@ export default function PosOrderPage() {
   });
 
   const dishesQuery = useQuery({
-    queryKey: ['menu-dishes', activeCategory, search],
+    queryKey: ['menu-dishes', activeCategory, search, menuPage],
     queryFn: () =>
       menuApi
-        .getDishes({ category_id: activeCategory || undefined, name: search.trim() || undefined, page_size: 100 })
-        .then((res) => res.data.items),
+        .getDishes({ category_id: activeCategory || undefined, name: search.trim() || undefined, page: menuPage, page_size: MENU_PAGE_SIZE })
+        .then((res) => res.data),
     staleTime: 30_000,
   });
 
@@ -104,7 +111,7 @@ export default function PosOrderPage() {
 
   const sendMutation = useMutation({
     mutationFn: (current: OrderDetail) => {
-      const items = Object.values(cart).map((line) => ({
+      const items = cart.map((line) => ({
         dish_id: line.dish.id,
         quantity: line.quantity,
         note: line.note.trim() || undefined,
@@ -112,7 +119,7 @@ export default function PosOrderPage() {
       return orderApi.addItems(current.id, items);
     },
     onSuccess: (res) => {
-      setCart({});
+      setCart([]);
       setBlockedDishIds([]);
       queryClient.setQueryData(orderKey, res.data);
       toast.success('Đã gửi món xuống bếp');
@@ -122,7 +129,7 @@ export default function PosOrderPage() {
       if (code === 'DISH_NOT_ORDERABLE') {
         const ids = getErrorDetail<{ dish_ids?: string[] }>(err)?.dish_ids ?? [];
         setBlockedDishIds(ids);
-        const names = ids.map((id) => cart[id]?.dish.name).filter(Boolean);
+        const names = [...new Set(cart.filter((line) => ids.includes(line.dish.id)).map((line) => line.dish.name))];
         toast.error(names.length ? `Món đã hết hoặc ngừng bán: ${names.join(', ')}` : getFormErrorMessage(err, 'Có món không gọi được'));
         queryClient.invalidateQueries({ queryKey: ['menu-dishes'] });
       } else {
@@ -142,37 +149,68 @@ export default function PosOrderPage() {
     onError: (err) => toast.error(getFormErrorMessage(err, 'Không hủy được đơn')),
   });
 
+  // chạm vào món: cộng thêm vào dòng cùng món chưa ghi chú, chưa có thì mở dòng mới
   const addDish = (dish: DishSummaryResponse) => {
     if (dish.status !== 'AVAILABLE') return;
-    if (!cart[dish.id] && Object.keys(cart).length >= MAX_LINES) {
+    const existing = cart.find((line) => line.dish.id === dish.id && line.note.trim() === '');
+    if (!existing && cart.length >= MAX_LINES) {
       toast.error(`Mỗi lần gửi tối đa ${MAX_LINES} dòng món`);
       return;
     }
     setBlockedDishIds((prev) => prev.filter((id) => id !== dish.id));
     setCart((prev) => {
-      const line = prev[dish.id];
-      return { ...prev, [dish.id]: { dish, note: line?.note ?? '', quantity: Math.min((line?.quantity ?? 0) + 1, MAX_QUANTITY) } };
+      const index = prev.findIndex((line) => line.dish.id === dish.id && line.note.trim() === '');
+      if (index < 0) return [...prev, { key: nextLineKey(), dish, note: '', quantity: 1 }];
+      return prev.map((line, i) => (i === index ? { ...line, quantity: Math.min(line.quantity + 1, MAX_QUANTITY) } : line));
     });
   };
 
-  const changeQuantity = (dishId: string, delta: number) => {
+  // tách thêm một dòng cùng món để ghi chú khác (VD một phần không hành, một phần ít cay)
+  const splitLine = (key: string) => {
+    if (cart.length >= MAX_LINES) {
+      toast.error(`Mỗi lần gửi tối đa ${MAX_LINES} dòng món`);
+      return;
+    }
     setCart((prev) => {
-      const line = prev[dishId];
-      if (!line) return prev;
-      const quantity = line.quantity + delta;
-      if (quantity < 1) {
-        const { [dishId]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [dishId]: { ...line, quantity: Math.min(quantity, MAX_QUANTITY) } };
+      const index = prev.findIndex((line) => line.key === key);
+      if (index < 0) return prev;
+      const copy: CartLine = { key: nextLineKey(), dish: prev[index].dish, quantity: 1, note: '' };
+      return [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
     });
   };
 
-  const changeNote = (dishId: string, note: string) => {
-    setCart((prev) => (prev[dishId] ? { ...prev, [dishId]: { ...prev[dishId], note } } : prev));
+  const changeQuantity = (key: string, delta: number) => {
+    setCart((prev) =>
+      prev.flatMap((line) => {
+        if (line.key !== key) return [line];
+        const quantity = line.quantity + delta;
+        return quantity < 1 ? [] : [{ ...line, quantity: Math.min(quantity, MAX_QUANTITY) }];
+      })
+    );
   };
 
-  const cartLines = Object.values(cart);
+  const changeNote = (key: string, note: string) => {
+    setCart((prev) => prev.map((line) => (line.key === key ? { ...line, note } : line)));
+  };
+
+  const serveMutation = useMutation({
+    mutationFn: (itemId: string) => orderApi.markServed(itemId),
+    onSuccess: () => {
+      toast.success('Đã xác nhận phục vụ');
+      queryClient.invalidateQueries({ queryKey: orderKey });
+      queryClient.invalidateQueries({ queryKey: ['ready-items'] });
+    },
+    onError: (err) => {
+      toast.error(
+        getErrorCode(err) === 'ORDER_ITEM_STATUS_CONFLICT'
+          ? 'Món này đã được nhân viên khác phục vụ.'
+          : getFormErrorMessage(err, 'Không xác nhận được phục vụ')
+      );
+      queryClient.invalidateQueries({ queryKey: orderKey });
+    },
+  });
+
+  const cartLines = cart;
   const cartTotal = cartLines.reduce((sum, line) => sum + line.dish.price * line.quantity, 0);
 
   if (!tableId) {
@@ -180,9 +218,9 @@ export default function PosOrderPage() {
   }
 
   return (
-    <div className="flex flex-col lg:h-[calc(100vh-3.5rem)] lg:flex-row">
+    <div className="flex flex-col md:h-screen md:flex-row">
       {/* thực đơn */}
-      <section className="flex min-h-0 flex-1 flex-col border-b border-slate-800 lg:border-b-0 lg:border-r">
+      <section className="flex min-h-0 flex-1 flex-col border-b border-slate-800 md:border-b-0 md:border-r">
         <div className="space-y-3 border-b border-slate-800 p-4">
           <div className="flex items-center gap-3">
             <Link to="/pos/tables" className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Về sơ đồ bàn">
@@ -194,13 +232,13 @@ export default function PosOrderPage() {
             </div>
             <div className="relative ml-auto w-full max-w-xs">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" />
-              <input className={cn(darkInput, 'pl-9')} placeholder="Tìm món..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className={cn(darkInput, 'pl-9')} placeholder="Tìm món..." value={search} onChange={(e) => { setSearch(e.target.value); setMenuPage(1); }} />
             </div>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
               type="button"
-              onClick={() => setActiveCategory('')}
+              onClick={() => { setActiveCategory(''); setMenuPage(1); }}
               className={cn(
                 'whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium',
                 activeCategory === '' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -212,7 +250,7 @@ export default function PosOrderPage() {
               <button
                 key={category.id}
                 type="button"
-                onClick={() => setActiveCategory(category.id)}
+                onClick={() => { setActiveCategory(category.id); setMenuPage(1); }}
                 className={cn(
                   'whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium',
                   activeCategory === category.id ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -229,14 +267,14 @@ export default function PosOrderPage() {
             <Spinner />
           ) : dishesQuery.isError ? (
             <EmptyState error message="Không tải được thực đơn." />
-          ) : !dishesQuery.data || dishesQuery.data.length === 0 ? (
-            <EmptyState message="Không có món nào phù hợp." />
+          ) : !dishesQuery.data || dishesQuery.data.items.length === 0 ? (
+            <EmptyState message="Không tìm thấy món ăn nào thỏa mãn điều kiện tìm kiếm." />
           ) : (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              {dishesQuery.data.map((dish) => {
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+              {dishesQuery.data.items.map((dish) => {
                 const soldOut = dish.status !== 'AVAILABLE';
                 const blocked = blockedDishIds.includes(dish.id);
-                const inCart = cart[dish.id]?.quantity;
+                const inCart = cart.filter((line) => line.dish.id === dish.id).reduce((sum, line) => sum + line.quantity, 0);
                 return (
                   <button
                     key={dish.id}
@@ -266,7 +304,7 @@ export default function PosOrderPage() {
                     {soldOut && (
                       <span className="absolute left-2 top-2 rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">Hết món</span>
                     )}
-                    {inCart && (
+                    {inCart > 0 && (
                       <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-slate-900">
                         {inCart}
                       </span>
@@ -276,11 +314,36 @@ export default function PosOrderPage() {
               })}
             </div>
           )}
+          {dishesQuery.data && dishesQuery.data.meta.total_pages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-3 text-sm text-slate-300">
+              <button
+                type="button"
+                disabled={menuPage <= 1}
+                onClick={() => setMenuPage((p) => p - 1)}
+                className="rounded-lg bg-slate-800 p-2.5 hover:bg-slate-700 disabled:opacity-40"
+                aria-label="Trang món trước"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <span>
+                Trang {dishesQuery.data.meta.page}/{dishesQuery.data.meta.total_pages}
+              </span>
+              <button
+                type="button"
+                disabled={menuPage >= dishesQuery.data.meta.total_pages}
+                onClick={() => setMenuPage((p) => p + 1)}
+                className="rounded-lg bg-slate-800 p-2.5 hover:bg-slate-700 disabled:opacity-40"
+                aria-label="Trang món sau"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
       {/* đơn hàng và giỏ */}
-      <aside className="flex min-h-0 w-full flex-col bg-slate-950 lg:w-[26rem]">
+      <aside className="flex min-h-0 w-full flex-col bg-slate-950 md:w-[22rem] lg:w-[26rem]">
         {orderQuery.isLoading ? (
           <Spinner />
         ) : orderQuery.isError ? (
@@ -317,7 +380,7 @@ export default function PosOrderPage() {
                   <ul className="space-y-3">
                     {cartLines.map((line) => (
                       <li
-                        key={line.dish.id}
+                        key={line.key}
                         className={cn(
                           'rounded-lg border p-3',
                           blockedDishIds.includes(line.dish.id) ? 'border-red-500 bg-red-500/10' : 'border-slate-700 bg-slate-900'
@@ -333,29 +396,38 @@ export default function PosOrderPage() {
                         <div className="mt-2 flex items-center gap-2">
                           <button
                             type="button"
-                            className="rounded bg-slate-700 p-1 text-slate-200 hover:bg-slate-600"
-                            onClick={() => changeQuantity(line.dish.id, -1)}
-                            aria-label="Giảm"
+                            className="rounded-lg bg-slate-700 p-2.5 text-slate-200 hover:bg-slate-600"
+                            onClick={() => changeQuantity(line.key, -1)}
+                            aria-label={line.quantity === 1 ? 'Bỏ món' : 'Giảm'}
                           >
-                            {line.quantity === 1 ? <Trash2 className="size-4" /> : <Minus className="size-4" />}
+                            {line.quantity === 1 ? <Trash2 className="size-5" /> : <Minus className="size-5" />}
                           </button>
-                          <span className="w-8 text-center text-sm font-semibold text-slate-100">{line.quantity}</span>
+                          <span className="w-8 text-center text-base font-semibold text-slate-100">{line.quantity}</span>
                           <button
                             type="button"
-                            className="rounded bg-slate-700 p-1 text-slate-200 hover:bg-slate-600"
-                            onClick={() => changeQuantity(line.dish.id, 1)}
+                            className="rounded-lg bg-slate-700 p-2.5 text-slate-200 hover:bg-slate-600"
+                            onClick={() => changeQuantity(line.key, 1)}
                             aria-label="Tăng"
                           >
-                            <Plus className="size-4" />
+                            <Plus className="size-5" />
                           </button>
-                          <input
-                            className={cn(darkInput, 'ml-2 py-1')}
-                            placeholder="Ghi chú (không hành, ít cay...)"
-                            maxLength={255}
-                            value={line.note}
-                            onChange={(e) => changeNote(line.dish.id, e.target.value)}
-                          />
+                          <button
+                            type="button"
+                            className="rounded-lg bg-slate-700 p-2.5 text-slate-200 hover:bg-slate-600"
+                            onClick={() => splitLine(line.key)}
+                            aria-label="Thêm dòng cùng món với ghi chú khác"
+                            title="Thêm dòng cùng món với ghi chú khác"
+                          >
+                            <Copy className="size-5" />
+                          </button>
                         </div>
+                        <input
+                          className={cn(darkInput, 'mt-2')}
+                          placeholder="Ghi chú (không hành, ít cay...)"
+                          maxLength={255}
+                          value={line.note}
+                          onChange={(e) => changeNote(line.key, e.target.value)}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -381,6 +453,17 @@ export default function PosOrderPage() {
                         <p className="mt-1 text-xs text-slate-500">
                           Gửi {formatTime(item.sent_at)} · {formatVnd(item.line_total)}
                         </p>
+                        {item.status === 'READY' && (
+                          <button
+                            type="button"
+                            disabled={serveMutation.isPending}
+                            onClick={() => serveMutation.mutate(item.id)}
+                            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            <CheckCheck className="size-4" />
+                            Đã phục vụ
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

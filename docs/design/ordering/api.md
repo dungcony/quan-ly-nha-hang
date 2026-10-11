@@ -6,10 +6,10 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 
 | Method | URL | Vai trò | UC | Request | Response (`data`) |
 |---|---|---|---|---|---|
-| POST | `/orders` | `WAITER` | UC015 | `OrderOpenRequest` (+ `Idempotency-Key`) | 201 `OrderResponse` |
+| POST | `/orders` | `WAITER` | UC015 | `OrderOpenRequest` | 201 `OrderResponse` |
 | GET | `/orders` | `WAITER`, `CASHIER` | UC015, UC018 | Query `OrderSearchRequest` + phân trang | 200 `{items: OrderSummaryResponse[], meta}` |
 | GET | `/orders/{id}` | `WAITER`, `CASHIER` | UC015 | — | 200 `OrderResponse` |
-| POST | `/orders/{id}/items` | `WAITER` | UC015 | `OrderItemsAddRequest` (+ `Idempotency-Key`) | 201 `OrderResponse` |
+| POST | `/orders/{id}/items` | `WAITER` | UC015 | `OrderItemsAddRequest` | 201 `OrderResponse` |
 | DELETE | `/orders/{id}` | `WAITER` | UC015 | — | 200 `null` |
 | GET | `/order-items/ready` | `WAITER` | UC015 | — | 200 `ReadyItemResponse[]` |
 | PUT | `/order-items/{id}/served` | `WAITER` | UC015 | — | 200 `OrderItemResponse` |
@@ -24,7 +24,7 @@ Ghi chú:
   Client gọi lại mỗi ~5 giây; response nhỏ, không cần `ETag` ở bản này.
 - Các hàm đổi trạng thái dòng món là `PUT .../start`, `.../ready`, `.../served`; không nhận body. Dùng `PUT` vì idempotent về kết quả cuối; gọi lại khi đã qua trạng thái đó trả 409
   `ORDER_ITEM_STATUS_CONFLICT` để client biết thao tác đã có người làm.
-- `POST /orders`, `POST /orders/{id}/items` gắn `@Idempotent`; `DELETE /orders/{id}` thì tự an toàn khi gọi lại (lần hai trả 404).
+- `DELETE /orders/{id}` tự an toàn khi gọi lại (lần hai trả 404).
 - `OrderItemsAddRequest` gồm `items` tối đa 50 dòng. Dòng món lưu `dish_name`, `unit_price` tại thời điểm gửi.
 - Hàm nội bộ cho module khác (không có endpoint), chi tiết ở `lopthucthe.md`: `openOrder` (cho `reservation`), `lockOrderForPayment`, `closeOrder` (cho `billing`).
 
@@ -66,7 +66,7 @@ sequenceDiagram
     participant Handler as GlobalExceptionHandler
 
     Waiter->>Ctrl: POST /orders/{id}/items (OrderItemsAddRequest)
-    Ctrl->>Ctrl: @PreAuthorize WAITER, @Idempotent, @Valid kiểm tra request
+    Ctrl->>Ctrl: @PreAuthorize WAITER, @Valid kiểm tra request
 
     alt Request không hợp lệ
         Ctrl->>Handler: MethodArgumentNotValidException

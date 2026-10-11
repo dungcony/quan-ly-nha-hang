@@ -7,6 +7,7 @@ import type {
 } from '@/utils/apiTypes';
 import { authApi } from '@/api/authApi';
 import { userApi } from '@/api/userApi';
+import { AUTH_EXPIRED_EVENT } from '@/helpers/axiosClient';
 
 interface AuthContextType {
   user: AuthUserResponse | null;
@@ -58,6 +59,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, [token, fetchCurrentProfile]);
+
+  // token bị server từ chối (hết hạn, tài khoản bị khóa) thì đăng xuất ngay thay vì để giao diện vẫn báo đã đăng nhập
+  useEffect(() => {
+    const handleExpired = () => {
+      setToken(null);
+      setUser(null);
+      setProfile(null);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+  }, []);
 
   // xử lý đăng nhập tài khoản
   const login = async (data: UserLoginRequest): Promise<AuthResponse> => {

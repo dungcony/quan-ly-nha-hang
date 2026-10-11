@@ -7,7 +7,7 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 | Method | URL | Vai trò | UC | Request | Response (`data`) |
 |---|---|---|---|---|---|
 | GET | `/billing/orders/{orderId}` | `CASHIER` | UC018 | — | 200 `PaymentSummaryResponse` |
-| POST | `/invoices` | `CASHIER` | UC018 | `InvoiceCreateRequest` (+ `Idempotency-Key`) | 201 `InvoiceResponse` |
+| POST | `/invoices` | `CASHIER` | UC018 | `InvoiceCreateRequest` | 201 `InvoiceResponse` |
 | GET | `/invoices` | `CASHIER`, `MANAGER` | UC007, UC019 | Query `InvoiceSearchRequest` + phân trang | 200 `{items: InvoiceSummaryResponse[], meta}` |
 | GET | `/invoices/{id}` | `CASHIER`, `MANAGER` | UC019 | — | 200 `InvoiceResponse` |
 | POST | `/invoices/{id}/reprint` | `CASHIER`, `MANAGER` | UC019 | — | 200 `InvoiceResponse` (`reprint` = `true`) |
@@ -19,7 +19,7 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 
 Ghi chú:
 
-- `POST /invoices/{id}/reprint` dùng `POST` vì có tác dụng phụ (tăng `print_count`); không gắn `@Idempotent` (in hai lần là hai lần in).
+- `POST /invoices/{id}/reprint` dùng `POST` vì có tác dụng phụ (tăng `print_count`)(in hai lần là hai lần in).
 - `sort_by` của `/invoices`: `paid_at` (mặc định), `total_amount`, `code`. `/me/invoices` luôn `paid_at` giảm dần.
 - Ngày trong `from_date`, `to_date` hiểu theo `app.timezone`: `[00:00 from_date, 00:00 (to_date + 1 ngày))`.
 - Thu ngân không lọc được sang ngày khác: `from_date`, `to_date` của họ bị ép về hôm nay (A15). Xem hoặc in lại hóa đơn ngoài hôm nay → 404.
@@ -97,7 +97,7 @@ sequenceDiagram
     participant Handler as GlobalExceptionHandler
 
     Cashier->>Ctrl: POST /invoices (InvoiceCreateRequest)
-    Ctrl->>Ctrl: @PreAuthorize CASHIER, @Idempotent, @Valid kiểm tra request
+    Ctrl->>Ctrl: @PreAuthorize CASHIER, @Valid kiểm tra request
 
     alt Request không hợp lệ
         Ctrl->>Handler: MethodArgumentNotValidException
@@ -140,8 +140,7 @@ sequenceDiagram
 ```
 
 Toàn bộ nằm trong một `@Transactional` của `InvoiceServiceImpl.createInvoice` (README mục 2.10): lỗi ở bất kỳ bước nào làm rollback, đơn giữ `OPEN`, bàn giữ `OCCUPIED`.
-Thứ tự khóa: `orders` (qua `lockOrderForPayment`) rồi `dining_tables`. Unique `invoices.order_id` là lớp chặn cuối nếu có đường nào bỏ sót khóa. `Idempotency-Key` bảo vệ trường hợp client gửi lại
-do mạng chậm. Không gọi I/O ngoài (email, máy in) trong transaction này.
+Thứ tự khóa: `orders` (qua `lockOrderForPayment`) rồi `dining_tables`. Unique `invoices.order_id` là lớp chặn cuối nếu có đường nào bỏ sót khóa. Gửi lại do mạng chậm nhận 409 `ORDER_NOT_OPEN`. Không gọi I/O ngoài (email, máy in) trong transaction này.
 
 ## 3. Biểu đồ Tuần tự (Sequence Diagram) - Báo cáo doanh thu (UC020)
 
