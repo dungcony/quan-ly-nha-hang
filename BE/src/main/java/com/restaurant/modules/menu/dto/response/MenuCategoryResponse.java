@@ -1,10 +1,11 @@
 package com.restaurant.modules.menu.dto.response;
 
-import com.restaurant.modules.menu.enums.DishCategory;
+import java.util.UUID;
 
 /**
- * @param dishCount số món đang hiển thị trong thực đơn ({@code AVAILABLE} và {@code OUT_OF_STOCK}); client tự ánh xạ tên
- *                  tiếng Việt từ {@code category}
+ * Danh mục trong thực đơn công khai.
+ *
+ * @param dishCount số món đang hiển thị trong thực đơn ({@code AVAILABLE} và {@code OUT_OF_STOCK})
  */
-public record MenuCategoryResponse(DishCategory category, long dishCount) {
+public record MenuCategoryResponse(UUID id, String name, int sortOrder, long dishCount) {
 }

@@ -97,14 +97,28 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAnyPackage(modulePackages())
             .allowEmptyShould(true);
 
-    // Rule 2.3: không dùng quan hệ ORM trực tiếp; mọi tham chiếu giữa các entity (kể cả cùng module) là id thuần.
+    // Rule 2.3: không dùng quan hệ ORM xuyên module; xuyên module chỉ lưu id thuần. Trong cùng module chỉ cho
+    // @ManyToOne (vd Dish -> Category); @OneToMany, @OneToOne, @ManyToMany vẫn bị cấm ở mọi trường hợp.
     @ArchTest
-    static final ArchRule entities_reference_each_other_by_id_only = fields()
+    static final ArchRule entities_do_not_use_orm_relations_across_modules = fields()
             .that().areDeclaredInClassesThat().areAnnotatedWith(Entity.class)
-            .should().notBeAnnotatedWith(ManyToOne.class)
-            .andShould().notBeAnnotatedWith(OneToMany.class)
-            .andShould().notBeAnnotatedWith(OneToOne.class)
-            .andShould().notBeAnnotatedWith(ManyToMany.class)
+            .should(new ArchCondition<>("not use @OneToMany, @OneToOne, @ManyToMany, or @ManyToOne to another module") {
+                @Override
+                public void check(JavaField field, ConditionEvents events) {
+                    if (field.isAnnotatedWith(OneToMany.class) || field.isAnnotatedWith(OneToOne.class)
+                            || field.isAnnotatedWith(ManyToMany.class)) {
+                        events.add(SimpleConditionEvent.violated(field, field.getDescription() + " uses a forbidden ORM relation"));
+                        return;
+                    }
+                    if (field.isAnnotatedWith(ManyToOne.class)) {
+                        String own = moduleOf(field.getOwner().getPackageName());
+                        String target = moduleOf(field.getRawType().getPackageName());
+                        if (own == null || !own.equals(target)) {
+                            events.add(SimpleConditionEvent.violated(field, field.getDescription() + " is a @ManyToOne across modules"));
+                        }
+                    }
+                }
+            })
             .allowEmptyShould(true);
 
     // Rule 2.3: enum trong entity luôn lưu dạng chuỗi, tránh ánh xạ sai khi đổi thứ tự enum.

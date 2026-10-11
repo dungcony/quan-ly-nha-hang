@@ -985,7 +985,7 @@ Tương tự đặc tả use case “Tìm kiếm nhân viên, khách hàng” (U
 
 ### 2.6.10 Quản lý món ăn
 
-**Mô tả:** Thực hiện các tác vụ như thêm, sửa, xóa, xem, tìm kiếm món ăn. Danh mục (Khai vị, Món chính, Đồ uống, Tráng miệng) là một thuộc tính của món, không quản lý riêng.
+**Mô tả:** Thực hiện các tác vụ như thêm, sửa, xóa, xem, tìm kiếm món ăn. Mỗi món thuộc một danh mục do Quản lý tự thêm, sửa, xóa (mặc định có Khai vị, Món chính, Đồ uống, Tráng miệng); danh mục còn món thì không xóa được.
 
 | Mã Use case | UC010 | Tên Use case | Quản lý món ăn |
 |---|---|---|---|
@@ -1077,7 +1077,7 @@ Tương tự đặc tả use case “Tìm kiếm nhân viên, khách hàng” (U
 | STT | Trường dữ liệu | Mô tả | Bắt buộc? | Điều kiện hợp lệ | Ví dụ |
 |---|---|---|---|---|---|
 | 1 | Tên món | Input text field | Có | Tối đa 255 ký tự, duy nhất trong cùng danh mục | Phở bò tái |
-| 2 | Danh mục | Select box | Có | Khai vị, Món chính, Đồ uống hoặc Tráng miệng | Món chính |
+| 2 | Danh mục | Select box | Có | Một trong các danh mục hiện có | Món chính |
 | 3 | Giá bán | Input number (VND) | Có | Số nguyên dương | 65000 |
 | 4 | Đơn vị tính | Input text field | Có | Tối đa 20 ký tự | Tô |
 | 5 | Mô tả | Text field | Không | Tối đa 1000 ký tự | Phở bò truyền thống, nước dùng hầm 12 giờ |

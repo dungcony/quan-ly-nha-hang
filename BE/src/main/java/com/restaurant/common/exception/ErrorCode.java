@@ -126,6 +126,12 @@ public enum ErrorCode {
     // Xóa món đã xuất hiện trong đơn hàng; khi đó chỉ chuyển sang ngừng bán được.
     DISH_IN_USE(HttpStatus.CONFLICT, "Món đã được gọi nên không thể xóa, chỉ có thể chuyển sang ngừng bán."),
 
+    // Tên danh mục món đã tồn tại.
+    CATEGORY_NAME_EXISTS(HttpStatus.CONFLICT, "Tên danh mục đã tồn tại."),
+
+    // Xóa danh mục còn món; phải chuyển hoặc xóa hết món trước.
+    CATEGORY_IN_USE(HttpStatus.CONFLICT, "Danh mục còn món nên không thể xóa."),
+
     // ---------------------------------------------------------------------
     // Bàn
     // ---------------------------------------------------------------------

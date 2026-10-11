@@ -7,6 +7,10 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 | Method | URL | Vai trò | UC | Request | Response (`data`) |
 |---|---|---|---|---|---|
 | GET | `/menu/categories` | Công khai | UC012 | — | 200 `MenuCategoryResponse[]` |
+| GET | `/categories` | `MANAGER` | UC010 | — | 200 `CategoryResponse[]` |
+| POST | `/categories` | `MANAGER` | UC010 | `CategoryCreateRequest` | 201 `CategoryResponse` |
+| PUT | `/categories/{id}` | `MANAGER` | UC010 | `CategoryUpdateRequest` | 200 `CategoryResponse` |
+| DELETE | `/categories/{id}` | `MANAGER` | UC010 | — | 200 `null` |
 | GET | `/menu/dishes` | Công khai | UC007, UC012 | Query `DishSearchRequest` + phân trang | 200 `{items: DishSummaryResponse[], meta}` |
 | GET | `/menu/dishes/{id}` | Công khai | UC012 | — | 200 `DishDetailResponse` |
 | GET | `/dishes` | `MANAGER` | UC007, UC010 | Query `DishSearchRequest` + phân trang | 200 `{items: DishSummaryResponse[], meta}` |
@@ -19,13 +23,13 @@ Quy ước URL, response, phân trang và mã lỗi: xem [`../README.md`](../REA
 Ghi chú:
 
 - Ba endpoint `/menu/**` là `GET` công khai và đã được mở trong `SecurityConfig`; ảnh món phục vụ qua `/files/dishes/...` (cũng công khai).
-- `sort_by` nhận `name` (mặc định), `price`, `category`, `created_at`. Client thực đơn nên gửi `sort_order=asc` vì mặc định của
+- `sort_by` nhận `name` (mặc định), `price`, `category` (theo `sort_order` của danh mục), `created_at`. Lọc theo danh mục bằng `category_id`. Client thực đơn nên gửi `sort_order=asc` vì mặc định của
   `PageRequestParams` là `desc`.
 - `/menu/dishes` luôn thêm điều kiện `status IN (AVAILABLE, OUT_OF_STOCK)` ở service, không tin tham số client.
 - Hàm nội bộ cho module khác: `DishService.getDishesForOrdering(Collection<UUID> ids)` trả `DishOrderingView(id, name, price, status)`;
   id không tồn tại → 404 `NOT_FOUND`. `ordering` tự kiểm `status == AVAILABLE`.
 
-Ví dụ `GET /menu/dishes?category=MAIN_COURSE&sort_by=name&sort_order=asc`:
+Ví dụ `GET /menu/dishes?category_id=3b1f0c52-6a7e-4c1d-9d41-0a2f7e8b1c10&sort_by=name&sort_order=asc`:
 
 ```json
 {
@@ -35,7 +39,8 @@ Ví dụ `GET /menu/dishes?category=MAIN_COURSE&sort_by=name&sort_order=asc`:
       {
         "id": "7b0c2d9e-2f0b-4d6e-8d63-0c3f6a0f2a11",
         "name": "Phở bò tái",
-        "category": "MAIN_COURSE",
+        "category_id": "3b1f0c52-6a7e-4c1d-9d41-0a2f7e8b1c10",
+        "category_name": "Món chính",
         "price": 65000,
         "unit": "Tô",
         "image_url": "/files/dishes/3f2a9c.jpg",
@@ -67,7 +72,8 @@ sequenceDiagram
         Handler-->>Manager: 400 VALIDATION_ERROR
     else Request hợp lệ
         Ctrl->>Svc: createDish(request)
-        Svc->>Val: validateNameUnique(category, name, null)
+        Svc->>Svc: nạp Category theo categoryId (không có → 404 NOT_FOUND)
+        Svc->>Val: validateNameUnique(categoryId, name, null)
 
         alt Tên đã có trong danh mục
             Val->>Handler: BusinessException(DISH_NAME_EXISTS)

@@ -1,11 +1,12 @@
 package com.restaurant.modules.menu.dto.request;
 
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+
+import java.util.UUID;
 
 /**
  * Sửa món (UC010). Đổi {@code status} ở đây là cách chuyển món sang hết món khi Bếp báo hết nguyên liệu và ngược lại.
@@ -17,7 +18,7 @@ public record DishUpdateRequest(
         String name,
 
         @NotNull(message = "Danh mục không được để trống")
-        DishCategory category,
+        UUID categoryId,
 
         @NotNull(message = "Giá bán không được để trống")
         @Positive(message = "Giá bán phải lớn hơn 0")

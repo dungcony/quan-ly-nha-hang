@@ -1,11 +1,11 @@
 package com.restaurant.modules.menu.repository;
 
-import com.restaurant.modules.menu.enums.DishCategory;
+import java.util.UUID;
 
 /** Số món của một danh mục. */
 public interface CategoryCountProjection {
 
-    DishCategory getCategory();
+    UUID getCategoryId();
 
     long getCount();
 }

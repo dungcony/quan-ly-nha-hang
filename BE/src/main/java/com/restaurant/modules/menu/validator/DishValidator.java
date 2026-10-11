@@ -2,7 +2,6 @@ package com.restaurant.modules.menu.validator;
 
 import com.restaurant.common.exception.BusinessException;
 import com.restaurant.common.exception.ErrorCode;
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import com.restaurant.modules.menu.repository.DishRepository;
 import com.restaurant.modules.menu.service.DishDeletionGuard;
@@ -26,10 +25,10 @@ public class DishValidator {
      * @param excludeDishId món đang sửa (bỏ qua chính nó); {@code null} khi thêm mới
      * @throws BusinessException {@code DISH_NAME_EXISTS} nếu trùng
      */
-    public void validateNameUnique(DishCategory category, String name, UUID excludeDishId) {
+    public void validateNameUnique(UUID categoryId, String name, UUID excludeDishId) {
         boolean exists = excludeDishId == null
-                ? dishRepository.existsByCategoryAndNameIgnoreCase(category, name)
-                : dishRepository.existsByCategoryAndNameIgnoreCaseAndIdNot(category, name, excludeDishId);
+                ? dishRepository.existsByCategoryIdAndNameIgnoreCase(categoryId, name)
+                : dishRepository.existsByCategoryIdAndNameIgnoreCaseAndIdNot(categoryId, name, excludeDishId);
         if (exists) {
             throw new BusinessException(ErrorCode.DISH_NAME_EXISTS);
         }
