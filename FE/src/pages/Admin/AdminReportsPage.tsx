@@ -1,136 +1,205 @@
 import { useState } from 'react';
-import { Download, Filter, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { reportApi, type RevenuePoint } from '@/api/reportApi';
+import Spinner from '@/components/ui/Spinner';
+import EmptyState from '@/components/ui/EmptyState';
+import { btnSecondary, inputClass, labelClass, tableHeadClass } from '@/components/ui/forms';
+import { cn } from '@/utils/cn';
+import { formatVnd, toIsoDate } from '@/utils/format';
+import { getErrorMessage } from '@/utils/apiError';
+
+type Granularity = 'daily' | 'monthly';
+
+// khoảng mặc định là 7 ngày gần nhất tính cả hôm nay
+function defaultRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 6);
+  return { from: toIsoDate(from), to: toIsoDate(to) };
+}
+
+function pointLabel(point: RevenuePoint): string {
+  return point.date ?? point.month ?? '';
+}
+
+function SummaryCard({ title, value, tone }: { title: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-1 text-sm font-medium text-slate-500">{title}</h3>
+      <p className={cn('text-2xl font-bold text-slate-900', tone)}>{value}</p>
+    </div>
+  );
+}
 
 export default function AdminReportsPage() {
-  const [dateRange, setDateRange] = useState('today');
+  const [granularity, setGranularity] = useState<Granularity>('daily');
+  const [draft, setDraft] = useState(defaultRange);
+  const [range, setRange] = useState(defaultRange);
+
+  const invalidRange = draft.from > draft.to;
+
+  const revenue = useQuery({
+    queryKey: ['report-revenue', granularity, range],
+    queryFn: () => {
+      const params = { from_date: range.from, to_date: range.to };
+      return (granularity === 'daily' ? reportApi.dailyRevenue(params) : reportApi.monthlyRevenue(params)).then((res) => res.data);
+    },
+  });
+
+  const topDishes = useQuery({
+    queryKey: ['report-top-dishes', range],
+    queryFn: () => reportApi.topDishes({ from_date: range.from, to_date: range.to, top_n: 10 }).then((res) => res.data),
+  });
+
+  const points = revenue.data?.points ?? [];
+  const maxTotal = Math.max(...points.map((p) => p.total_amount), 1);
+  const maxQuantity = Math.max(...(topDishes.data?.items.map((d) => d.quantity) ?? []), 1);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Báo cáo doanh thu</h2>
-          <p className="text-sm text-slate-500 mt-1">Phân tích hoạt động kinh doanh của nhà hàng</p>
+          <p className="mt-1 text-sm text-slate-500">Tính trên các hóa đơn đã thanh toán trong khoảng ngày chọn</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select 
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="px-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!invalidRange) setRange(draft);
+          }}
+        >
+          <div>
+            <span className={labelClass}>Từ ngày</span>
+            <input
+              type="date"
+              className={inputClass}
+              value={draft.from}
+              onChange={(e) => setDraft({ ...draft, from: e.target.value })}
+            />
+          </div>
+          <div>
+            <span className={labelClass}>Đến ngày</span>
+            <input
+              type="date"
+              className={inputClass}
+              value={draft.to}
+              onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+            />
+          </div>
+          <button type="submit" className={btnSecondary} disabled={invalidRange}>
+            Xem báo cáo
+          </button>
+        </form>
+      </div>
+      {invalidRange && <p className="text-sm text-red-600">Ngày bắt đầu không được sau ngày kết thúc.</p>}
+
+      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+        {(['daily', 'monthly'] as Granularity[]).map((g) => (
+          <button
+            key={g}
+            type="button"
+            onClick={() => setGranularity(g)}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+              granularity === g ? 'bg-amber-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+            )}
           >
-            <option value="today">Hôm nay</option>
-            <option value="week">Tuần này</option>
-            <option value="month">Tháng này</option>
-            <option value="year">Năm nay</option>
-          </select>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
-            <Filter className="h-4 w-4" />
-            Lọc
+            {g === 'daily' ? 'Theo ngày' : 'Theo tháng'}
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
-            <Download className="h-4 w-4" />
-            Xuất báo cáo
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-              <DollarSign className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12.5%</span>
+      {revenue.isLoading ? (
+        <Spinner />
+      ) : revenue.isError ? (
+        <EmptyState error message={getErrorMessage(revenue.error, 'Không tải được báo cáo doanh thu.')} />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryCard title="Số hóa đơn" value={String(revenue.data?.summary.invoice_count ?? 0)} />
+            <SummaryCard title="Doanh thu trước VAT" value={formatVnd(revenue.data?.summary.subtotal)} />
+            <SummaryCard title="Tiền VAT" value={formatVnd(revenue.data?.summary.vat_amount)} />
+            <SummaryCard title="Tổng doanh thu" value={formatVnd(revenue.data?.summary.total_amount)} tone="text-amber-600" />
           </div>
-          <span className="text-sm font-medium text-slate-500">Doanh thu thực tế</span>
-          <h4 className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">18.450.000 đ</h4>
-        </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">+5.2%</span>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 font-semibold text-slate-800">Doanh thu {granularity === 'daily' ? 'theo ngày' : 'theo tháng'}</h3>
+            {points.length === 0 ? (
+              <EmptyState message="Không có hóa đơn nào trong khoảng này." />
+            ) : (
+              <>
+                <div className="flex h-56 items-end gap-2 overflow-x-auto pb-1">
+                  {points.map((p) => (
+                    <div key={pointLabel(p)} className="flex h-full min-w-10 flex-1 flex-col items-center justify-end gap-1">
+                      <span className="text-[10px] text-slate-500">{formatVnd(p.total_amount)}</span>
+                      <div
+                        className="w-full rounded-t bg-amber-500"
+                        style={{ height: `${Math.max((p.total_amount / maxTotal) * 100, 2)}%` }}
+                        title={`${pointLabel(p)}: ${formatVnd(p.total_amount)}`}
+                      />
+                      <span className="text-[10px] text-slate-500">{pointLabel(p)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className={tableHeadClass}>
+                      <tr>
+                        <th className="px-4 py-2">{granularity === 'daily' ? 'Ngày' : 'Tháng'}</th>
+                        <th className="px-4 py-2">Số hóa đơn</th>
+                        <th className="px-4 py-2">Trước VAT</th>
+                        <th className="px-4 py-2">VAT</th>
+                        <th className="px-4 py-2">Tổng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {points.map((p) => (
+                        <tr key={pointLabel(p)}>
+                          <td className="px-4 py-2">{pointLabel(p)}</td>
+                          <td className="px-4 py-2">{p.invoice_count}</td>
+                          <td className="px-4 py-2">{formatVnd(p.subtotal)}</td>
+                          <td className="px-4 py-2">{formatVnd(p.vat_amount)}</td>
+                          <td className="px-4 py-2 font-medium">{formatVnd(p.total_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
-          <span className="text-sm font-medium text-slate-500">Số đơn hoàn thành</span>
-          <h4 className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">68 đơn</h4>
-        </div>
+        </>
+      )}
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
-              <Users className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">+18.1%</span>
-          </div>
-          <span className="text-sm font-medium text-slate-500">Khách phục vụ</span>
-          <h4 className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">142 khách</h4>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-              <TrendingUp className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-full">-2.4%</span>
-          </div>
-          <span className="text-sm font-medium text-slate-500">Trung bình / Bàn</span>
-          <h4 className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">271.000 đ</h4>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Biểu đồ phân bổ (Mockup) */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-slate-800">Biểu đồ Doanh thu</h3>
-            <span className="text-xs font-medium text-slate-500">Theo giờ</span>
-          </div>
-          <div className="flex-1 min-h-[300px] flex items-end justify-between gap-2 px-4 pb-4 border-b border-slate-100 relative">
-            {/* Các cột mock biểu đồ */}
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 w-full">
-                <div 
-                  className="w-full bg-amber-200 rounded-t-sm hover:bg-amber-400 transition-colors cursor-pointer relative group"
-                  style={{ height: `${Math.max(10, Math.random() * 100)}%` }}
-                >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded hidden group-hover:block whitespace-nowrap z-10">
-                    {Math.floor(Math.random() * 5)}M đ
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="mb-4 font-semibold text-slate-800">Món bán chạy (top 10)</h3>
+        {topDishes.isLoading ? (
+          <Spinner />
+        ) : topDishes.isError ? (
+          <EmptyState error message={getErrorMessage(topDishes.error, 'Không tải được món bán chạy.')} />
+        ) : !topDishes.data || topDishes.data.items.length === 0 ? (
+          <EmptyState message="Chưa có món nào được bán trong khoảng này." />
+        ) : (
+          <ol className="space-y-3">
+            {topDishes.data.items.map((dish, index) => (
+              <li key={dish.dish_id} className="flex items-center gap-3 text-sm">
+                <span className="w-6 text-right font-bold text-slate-400">{index + 1}</span>
+                <div className="flex-1">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-slate-800">{dish.dish_name}</span>
+                    <span className="text-slate-500">
+                      {dish.quantity} phần · {formatVnd(dish.revenue)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-slate-100">
+                    <div className="h-2 rounded-full bg-amber-500" style={{ width: `${(dish.quantity / maxQuantity) * 100}%` }} />
                   </div>
                 </div>
-                <span className="text-[10px] font-medium text-slate-400">{i + 8}h</span>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
-
-        {/* Top món bán chạy */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-6">Top món bán chạy</h3>
-          <div className="space-y-4">
-            {[
-              { name: 'Phở Bò Tái Nạm', qty: 45, price: '2.925.000' },
-              { name: 'Cơm Rang Dưa Bò', qty: 38, price: '2.090.000' },
-              { name: 'Sườn Nướng BBQs', qty: 24, price: '3.600.000' },
-              { name: 'Trà Đá', qty: 68, price: '340.000' },
-              { name: 'Salad Cá Hồi', qty: 15, price: '1.275.000' }
-            ].map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded bg-slate-100 flex items-center justify-center font-bold text-slate-600 text-xs">
-                    #{idx + 1}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-slate-900">{item.name}</h4>
-                    <p className="text-xs text-slate-500">{item.qty} phần</p>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-amber-700">{item.price} đ</span>
-              </div>
-            ))}
-          </div>
-        </div>
+          </ol>
+        )}
       </div>
     </div>
   );

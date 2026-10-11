@@ -53,3 +53,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* chỉ in khung hóa đơn, ẩn mọi thứ còn lại của trang */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+  }
+}

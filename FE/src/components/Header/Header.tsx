@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UtensilsCrossed, LogIn, User, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { roleHomeLabel, roleHomePath } from '@/utils/labels';
 
 export default function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -93,11 +94,11 @@ export default function Header() {
                     {roleName !== 'CUSTOMER' && (
                       <>
                         <Link 
-                          to="/admin" 
+                          to={roleHomePath(roleName)}
                           onClick={() => setIsDropdownOpen(false)}
                           className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-amber-600"
                         >
-                          Trang Quản Trị
+                          {roleHomeLabel(roleName)}
                         </Link>
                         <Link 
                           to="/account/profile" 

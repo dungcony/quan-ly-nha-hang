@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { ErrorResponse } from '@/utils/apiTypes';
+import { roleHomePath } from '@/utils/labels';
+import ResendVerificationForm from '@/components/features/ResendVerificationForm';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -12,18 +14,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // tài khoản chưa xác thực email thì cho gửi lại liên kết ngay tại đây
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // xử lý gửi thông tin đăng nhập lên server
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setNeedsVerification(false);
     setIsLoading(true);
 
     try {
-      await login({ email, password });
-      navigate('/');
+      const auth = await login({ email, password });
+      navigate(roleHomePath(auth.user.role));
     } catch (err: unknown) {
       const errorData = err as ErrorResponse;
+      setNeedsVerification(errorData?.error?.code === 'AUTH_ACCOUNT_NOT_VERIFIED');
       if (errorData?.error?.fields && errorData.error.fields.length > 0) {
         const fieldDetails = errorData.error.fields.map((f) => f.message).join('. ');
         setErrorMessage(fieldDetails);
@@ -62,6 +68,12 @@ export default function LoginPage() {
           <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
             <AlertCircle className="size-5 shrink-0 mt-0.5" />
             <span className="text-pretty">{errorMessage}</span>
+          </div>
+        )}
+
+        {needsVerification && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <ResendVerificationForm initialEmail={email} />
           </div>
         )}
 

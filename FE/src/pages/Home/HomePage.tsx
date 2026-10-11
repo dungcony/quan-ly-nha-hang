@@ -30,22 +30,12 @@ export default function HomePage() {
               </>
             ) : (
               <div className="flex flex-wrap justify-center gap-4">
-                {/* MANAGER có thể truy cập mọi portal */}
+                {/* MANAGER chỉ vào khu quản trị; POS và Bếp dành cho đúng vai trò của chúng */}
                 {user.role === 'MANAGER' && (
-                  <>
-                    <Link to="/admin" className="flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-slate-800 hover:bg-slate-900">
-                      <LayoutDashboard className="mr-2 h-5 w-5" />
-                      Trang Quản Trị
-                    </Link>
-                    <Link to="/pos" className="flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                      <MonitorPlay className="mr-2 h-5 w-5" />
-                      Mở POS
-                    </Link>
-                    <Link to="/kitchen" className="flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700">
-                      <ChefHat className="mr-2 h-5 w-5" />
-                      Mở KDS (Bếp)
-                    </Link>
-                  </>
+                  <Link to="/admin" className="flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-slate-800 hover:bg-slate-900">
+                    <LayoutDashboard className="mr-2 h-5 w-5" />
+                    Trang Quản Trị
+                  </Link>
                 )}
                 
                 {/* WAITER / CASHIER truy cập POS */}

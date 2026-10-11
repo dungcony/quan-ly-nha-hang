@@ -27,12 +27,21 @@ import ModuleDetailPage from '@/pages/Modules/ModuleDetailPage';
 import AdminDashboard from '@/pages/Admin/AdminDashboard';
 import AdminMenuPage from '@/pages/Admin/AdminMenuPage';
 import AdminTablesPage from '@/pages/Admin/AdminTablesPage';
-import AdminUsersPage from '@/pages/Admin/AdminUsersPage';
+import AdminCategoriesPage from '@/pages/Admin/AdminCategoriesPage';
+import AdminStaffPage from '@/pages/Admin/AdminStaffPage';
+import AdminCustomersPage from '@/pages/Admin/AdminCustomersPage';
+import AdminReservationsPage from '@/pages/Admin/AdminReservationsPage';
+import AdminInvoicesPage from '@/pages/Admin/AdminInvoicesPage';
 import AdminReportsPage from '@/pages/Admin/AdminReportsPage';
 
 // POS Pages
+import PosTablesPage from '@/pages/Pos/PosTablesPage';
 import PosOrderPage from '@/pages/Pos/PosOrderPage';
-import TableManagement from '@/pages/Tables/TableManagement';
+import PosServePage from '@/pages/Pos/PosServePage';
+import PosReservationsPage from '@/pages/Pos/PosReservationsPage';
+import PosPaymentListPage from '@/pages/Pos/PosPaymentListPage';
+import PosPaymentPage from '@/pages/Pos/PosPaymentPage';
+import PosInvoicesPage from '@/pages/Pos/PosInvoicesPage';
 
 // Kitchen Pages
 import KitchenDashboard from '@/pages/Kitchen/KitchenDashboard';
@@ -68,28 +77,43 @@ export default function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
               <Route path="menu" element={<AdminMenuPage />} />
+              <Route path="categories" element={<AdminCategoriesPage />} />
               <Route path="tables" element={<AdminTablesPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="reservations" element={<AdminReservationsPage />} />
+              <Route path="invoices" element={<AdminInvoicesPage />} />
+              <Route path="staff" element={<AdminStaffPage />} />
+              <Route path="customers" element={<AdminCustomersPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
             </Route>
           </Route>
 
-          {/* LUONG POS */}
-          <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'CASHIER', 'WAITER']} />}>
+          {/* LUONG POS: Phuc vu va Thu ngan, moi vai tro chi vao man hinh cua minh */}
+          <Route element={<ProtectedRoute allowedRoles={['WAITER', 'CASHIER']} />}>
             <Route path="/pos" element={<PosLayout />}>
               <Route index element={<Navigate to="/pos/tables" replace />} />
-              <Route path="tables" element={<div className="h-full bg-slate-900 overflow-auto p-6"><TableManagement /></div>} />
-              <Route path="order" element={<PosOrderPage />} />
+              <Route path="tables" element={<PosTablesPage />} />
+
+              <Route element={<ProtectedRoute allowedRoles={['WAITER']} />}>
+                <Route path="order/:tableId" element={<PosOrderPage />} />
+                <Route path="serve" element={<PosServePage />} />
+                <Route path="reservations" element={<PosReservationsPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['CASHIER']} />}>
+                <Route path="payment" element={<PosPaymentListPage />} />
+                <Route path="payment/:orderId" element={<PosPaymentPage />} />
+                <Route path="invoices" element={<PosInvoicesPage />} />
+              </Route>
             </Route>
           </Route>
 
           {/* LUONG BEP */}
-          <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'CHEF']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['CHEF']} />}>
             <Route path="/kitchen" element={<KitchenLayout />}>
               <Route index element={<KitchenDashboard />} />
             </Route>
           </Route>
-          
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
