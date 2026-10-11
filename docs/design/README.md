@@ -138,7 +138,6 @@ Mọi enum trong entity dùng `@Enumerated(EnumType.STRING)` (rule 2.3); cột C
 | `Gender` | `MALE`, `FEMALE`, `OTHER` | `User.gender` |
 | `UserStatus` | `ACTIVE` (Unlocked), `LOCKED` | `User.status` |
 | `UserTokenType` | `EMAIL_VERIFICATION`, `PASSWORD_RESET` | `UserToken.type` |
-| `DishCategory` | `APPETIZER` (Khai vị), `MAIN_COURSE` (Món chính), `DRINK` (Đồ uống), `DESSERT` (Tráng miệng) | `Dish.category` |
 | `DishStatus` | `AVAILABLE` (Đang bán), `OUT_OF_STOCK` (Hết món), `DISCONTINUED` (Ngừng bán) | `Dish.status` |
 | `TableZone` | `INDOOR` (Trong nhà), `OUTDOOR` (Ngoài trời), `VIP_ROOM` (Phòng VIP), `SECOND_FLOOR` (Tầng 2) | `DiningTable.zone`, `Reservation.preferredZone` |
 | `TableStatus` | `AVAILABLE` (Trống), `RESERVED` (Đã đặt), `OCCUPIED` (Đang phục vụ), `OUT_OF_SERVICE` (Tạm khóa) | `DiningTable.status` |
@@ -248,6 +247,8 @@ Mã mới, thêm vào `ErrorCode` khi code module tương ứng:
 | `USER_HAS_ACTIVITY` | 409 | user-management | Xóa nhân viên đã có đơn/hóa đơn, hoặc khách hàng còn đặt bàn chờ/đã xác nhận (UC008 4a, UC009 4a) |
 | `DISH_NAME_EXISTS` | 409 | menu-management | Tên món đã tồn tại trong danh mục (UC010 4b) |
 | `DISH_IN_USE` | 409 | menu-management | Xóa món đã xuất hiện trong đơn hàng (UC010 4a) |
+| `CATEGORY_NAME_EXISTS` | 409 | menu-management | Tên danh mục món đã tồn tại (UC010) |
+| `CATEGORY_IN_USE` | 409 | menu-management | Xóa danh mục còn món (UC010) |
 | `DISH_NOT_ORDERABLE` | 400 | ordering | Gọi món `OUT_OF_STOCK`/`DISCONTINUED` (UC015 4a) |
 | `TABLE_NAME_EXISTS` | 409 | table-management | Tên/số bàn đã tồn tại (UC011 4b) |
 | `TABLE_IN_USE` | 409 | table-management | Xóa hoặc tạm khóa (`OUT_OF_SERVICE`) bàn đang phục vụ hoặc còn đặt bàn chưa hoàn tất (UC011 4a) |
@@ -371,6 +372,7 @@ Các quy ước thiết kế khác ở những chỗ SRS không nói:
 ```mermaid
 erDiagram
     users ||--o{ user_tokens : "user_id"
+    categories ||--o{ dishes : "category_id"
     dishes ||..o{ order_items : "dish_id"
     dining_tables ||..o{ reservations : "table_id"
     dining_tables ||..o{ orders : "table_id"
@@ -391,10 +393,15 @@ erDiagram
         boolean must_change_password
         timestamptz deleted_at
     }
+    categories {
+        uuid id PK
+        varchar name
+        int sort_order
+    }
     dishes {
         uuid id PK
         varchar name
-        varchar category
+        uuid category_id FK
         bigint price
         varchar status
     }

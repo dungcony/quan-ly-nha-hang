@@ -11,12 +11,11 @@ import com.restaurant.modules.menu.dto.request.DishUpdateRequest;
 import com.restaurant.modules.menu.dto.response.DishDetailResponse;
 import com.restaurant.modules.menu.dto.response.DishOrderingView;
 import com.restaurant.modules.menu.dto.response.DishSummaryResponse;
-import com.restaurant.modules.menu.dto.response.MenuCategoryResponse;
+import com.restaurant.modules.menu.entity.Category;
 import com.restaurant.modules.menu.entity.Dish;
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import com.restaurant.modules.menu.mapper.DishMapper;
-import com.restaurant.modules.menu.repository.CategoryCountProjection;
+import com.restaurant.modules.menu.repository.CategoryRepository;
 import com.restaurant.modules.menu.repository.DishRepository;
 import com.restaurant.modules.menu.service.DishService;
 import com.restaurant.modules.menu.validator.DishValidator;
@@ -28,9 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,9 +44,10 @@ public class DishServiceImpl implements DishService {
 
     // Tên field client được phép sắp xếp (snake_case) -> thuộc tính entity
     private static final Map<String, String> SORTABLE_FIELDS =
-            Map.of("name", "name", "price", "price", "category", "category", "created_at", "createdAt");
+            Map.of("name", "name", "price", "price", "category", "category.sortOrder", "created_at", "createdAt");
 
     private final DishRepository dishRepository;
+    private final CategoryRepository categoryRepository;
     private final DishValidator dishValidator;
     private final DishMapper dishMapper;
     private final FileStorageService fileStorageService;
@@ -73,18 +71,6 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MenuCategoryResponse> listCategories() {
-        Map<DishCategory, Long> counts = new EnumMap<>(DishCategory.class);
-        for (CategoryCountProjection row : dishRepository.countVisibleByCategory(VISIBLE_STATUSES)) {
-            counts.put(row.getCategory(), row.getCount());
-        }
-        return Arrays.stream(DishCategory.values())
-                .map(category -> new MenuCategoryResponse(category, counts.getOrDefault(category, 0L)))
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public Page<DishSummaryResponse> searchDishes(DishSearchRequest request, PageRequestParams params) {
         return search(request, params, false);
     }
@@ -98,9 +84,11 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional
     public DishDetailResponse createDish(DishCreateRequest request) {
-        dishValidator.validateNameUnique(request.category(), request.name(), null);
+        Category category = loadCategory(request.categoryId());
+        dishValidator.validateNameUnique(category.getId(), request.name(), null);
         Dish dish = dishMapper.fromCreateRequest(request);
         dish.setId(UUID.randomUUID());
+        dish.setCategory(category);
         return dishMapper.toDetailResponse(saveAndFlushUnique(dish));
     }
 
@@ -108,8 +96,10 @@ public class DishServiceImpl implements DishService {
     @Transactional
     public DishDetailResponse updateDish(UUID id, DishUpdateRequest request) {
         Dish dish = loadDish(id);
-        dishValidator.validateNameUnique(request.category(), request.name(), id);
+        Category category = loadCategory(request.categoryId());
+        dishValidator.validateNameUnique(category.getId(), request.name(), id);
         dishMapper.updateFromRequest(request, dish);
+        dish.setCategory(category);
         return dishMapper.toDetailResponse(saveAndFlushUnique(dish));
     }
 
@@ -146,8 +136,8 @@ public class DishServiceImpl implements DishService {
         if (visibleOnly) {
             spec = spec.and((root, query, cb) -> root.get("status").in(VISIBLE_STATUSES));
         }
-        if (request.category() != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("category"), request.category()));
+        if (request.categoryId() != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("category").get("id"), request.categoryId()));
         }
         if (request.minPrice() != null) {
             spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("price"), request.minPrice()));
@@ -164,6 +154,11 @@ public class DishServiceImpl implements DishService {
 
     private Dish loadDish(UUID id) {
         return dishRepository.findById(id).orElseThrow(DishServiceImpl::dishNotFound);
+    }
+
+    private Category loadCategory(UUID id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục."));
     }
 
     private static BusinessException dishNotFound() {

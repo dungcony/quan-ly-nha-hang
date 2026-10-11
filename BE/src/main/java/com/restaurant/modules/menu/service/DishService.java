@@ -7,7 +7,6 @@ import com.restaurant.modules.menu.dto.request.DishUpdateRequest;
 import com.restaurant.modules.menu.dto.response.DishDetailResponse;
 import com.restaurant.modules.menu.dto.response.DishOrderingView;
 import com.restaurant.modules.menu.dto.response.DishSummaryResponse;
-import com.restaurant.modules.menu.dto.response.MenuCategoryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,7 +16,7 @@ import java.util.UUID;
 
 /**
  * Món ăn: thực đơn công khai (UC007, UC012), quản lý của Quản lý (UC010) và dữ liệu món cho module gọi món.
- * Hàm {@code *Visible*} và {@link #listCategories()} luôn chỉ thấy món {@code AVAILABLE} và {@code OUT_OF_STOCK}.
+ * Hàm {@code *Visible*} luôn chỉ thấy món {@code AVAILABLE} và {@code OUT_OF_STOCK}.
  */
 public interface DishService {
 
@@ -30,9 +29,6 @@ public interface DishService {
      * @throws com.restaurant.common.exception.BusinessException {@code NOT_FOUND} nếu món không có hoặc đã ngừng bán
      */
     DishDetailResponse getVisibleDish(UUID id);
-
-    /** Bốn danh mục kèm số món đang hiển thị (0 nếu chưa có món). */
-    List<MenuCategoryResponse> listCategories();
 
     /**
      * Tìm món cho Quản lý, thấy cả món ngừng bán.
@@ -47,12 +43,12 @@ public interface DishService {
     DishDetailResponse getDish(UUID id);
 
     /**
-     * @throws com.restaurant.common.exception.BusinessException {@code DISH_NAME_EXISTS} nếu trùng tên trong cùng danh mục
+     * @throws com.restaurant.common.exception.BusinessException {@code NOT_FOUND} nếu danh mục không có, {@code DISH_NAME_EXISTS} nếu trùng tên trong cùng danh mục
      */
     DishDetailResponse createDish(DishCreateRequest request);
 
     /**
-     * @throws com.restaurant.common.exception.BusinessException {@code NOT_FOUND}, {@code DISH_NAME_EXISTS}
+     * @throws com.restaurant.common.exception.BusinessException {@code NOT_FOUND} (món hoặc danh mục), {@code DISH_NAME_EXISTS}
      */
     DishDetailResponse updateDish(UUID id, DishUpdateRequest request);
 

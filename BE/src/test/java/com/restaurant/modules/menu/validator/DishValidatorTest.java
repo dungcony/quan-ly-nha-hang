@@ -1,7 +1,6 @@
 package com.restaurant.modules.menu.validator;
 
 import com.restaurant.common.exception.BusinessException;
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import com.restaurant.modules.menu.repository.DishRepository;
 import com.restaurant.modules.menu.service.DishDeletionGuard;
@@ -24,6 +23,9 @@ class DishValidatorTest {
     @Mock
     private DishRepository dishRepository;
 
+    private final UUID mainCourse = UUID.randomUUID();
+    private final UUID drink = UUID.randomUUID();
+
     private DishValidator validator(DishDeletionGuard... guards) {
         StaticListableBeanFactory factory = new StaticListableBeanFactory();
         for (int i = 0; i < guards.length; i++) {
@@ -35,17 +37,17 @@ class DishValidatorTest {
 
     @Test
     void validateNameUnique_passes_when_name_is_free_in_the_category() {
-        when(dishRepository.existsByCategoryAndNameIgnoreCase(DishCategory.MAIN_COURSE, "Phở bò")).thenReturn(false);
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCase(mainCourse, "Phở bò")).thenReturn(false);
 
-        assertThatCode(() -> validator().validateNameUnique(DishCategory.MAIN_COURSE, "Phở bò", null))
+        assertThatCode(() -> validator().validateNameUnique(mainCourse, "Phở bò", null))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void validateNameUnique_rejects_duplicate_ignoring_case_for_new_dish() {
-        when(dishRepository.existsByCategoryAndNameIgnoreCase(DishCategory.MAIN_COURSE, "phở BÒ")).thenReturn(true);
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCase(mainCourse, "phở BÒ")).thenReturn(true);
 
-        assertThatThrownBy(() -> validator().validateNameUnique(DishCategory.MAIN_COURSE, "phở BÒ", null))
+        assertThatThrownBy(() -> validator().validateNameUnique(mainCourse, "phở BÒ", null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("DISH_NAME_EXISTS");
     }
@@ -53,12 +55,12 @@ class DishValidatorTest {
     @Test
     void validateNameUnique_ignores_the_dish_being_updated() {
         UUID self = UUID.randomUUID();
-        when(dishRepository.existsByCategoryAndNameIgnoreCaseAndIdNot(DishCategory.DRINK, "Trà đá", self)).thenReturn(false);
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCaseAndIdNot(drink, "Trà đá", self)).thenReturn(false);
         UUID other = UUID.randomUUID();
-        when(dishRepository.existsByCategoryAndNameIgnoreCaseAndIdNot(DishCategory.DRINK, "Cà phê", other)).thenReturn(true);
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCaseAndIdNot(drink, "Cà phê", other)).thenReturn(true);
 
-        assertThatCode(() -> validator().validateNameUnique(DishCategory.DRINK, "Trà đá", self)).doesNotThrowAnyException();
-        assertThatThrownBy(() -> validator().validateNameUnique(DishCategory.DRINK, "Cà phê", other))
+        assertThatCode(() -> validator().validateNameUnique(drink, "Trà đá", self)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> validator().validateNameUnique(drink, "Cà phê", other))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("DISH_NAME_EXISTS");
     }

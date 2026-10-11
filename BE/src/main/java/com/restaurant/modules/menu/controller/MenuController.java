@@ -7,6 +7,7 @@ import com.restaurant.modules.menu.dto.request.DishSearchRequest;
 import com.restaurant.modules.menu.dto.response.DishDetailResponse;
 import com.restaurant.modules.menu.dto.response.DishSummaryResponse;
 import com.restaurant.modules.menu.dto.response.MenuCategoryResponse;
+import com.restaurant.modules.menu.service.CategoryService;
 import com.restaurant.modules.menu.service.DishService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +26,11 @@ import java.util.UUID;
 public class MenuController {
 
     private final DishService dishService;
+    private final CategoryService categoryService;
 
     @GetMapping("/categories")
     public ApiResponse<List<MenuCategoryResponse>> listCategories() {
-        return ApiResponse.of(dishService.listCategories());
+        return ApiResponse.of(categoryService.listMenuCategories());
     }
 
     @GetMapping("/dishes")

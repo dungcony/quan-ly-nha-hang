@@ -1,11 +1,12 @@
 package com.restaurant.modules.menu.dto.request;
 
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+
+import java.util.UUID;
 
 /**
  * Thêm món (UC010, Bảng 2-22). Ảnh không nằm ở đây mà tải riêng qua {@code PUT /dishes/{id}/image}.
@@ -19,7 +20,7 @@ public record DishCreateRequest(
         String name,
 
         @NotNull(message = "Danh mục không được để trống")
-        DishCategory category,
+        UUID categoryId,
 
         @NotNull(message = "Giá bán không được để trống")
         @Positive(message = "Giá bán phải lớn hơn 0")

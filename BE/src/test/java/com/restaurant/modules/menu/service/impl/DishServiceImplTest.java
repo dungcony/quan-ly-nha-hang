@@ -9,12 +9,11 @@ import com.restaurant.modules.menu.dto.request.DishUpdateRequest;
 import com.restaurant.modules.menu.dto.response.DishDetailResponse;
 import com.restaurant.modules.menu.dto.response.DishOrderingView;
 import com.restaurant.modules.menu.dto.response.DishSummaryResponse;
-import com.restaurant.modules.menu.dto.response.MenuCategoryResponse;
+import com.restaurant.modules.menu.entity.Category;
 import com.restaurant.modules.menu.entity.Dish;
-import com.restaurant.modules.menu.enums.DishCategory;
 import com.restaurant.modules.menu.enums.DishStatus;
 import com.restaurant.modules.menu.mapper.DishMapperImpl;
-import com.restaurant.modules.menu.repository.CategoryCountProjection;
+import com.restaurant.modules.menu.repository.CategoryRepository;
 import com.restaurant.modules.menu.repository.DishRepository;
 import com.restaurant.modules.menu.service.DishDeletionGuard;
 import com.restaurant.modules.menu.validator.DishValidator;
@@ -33,7 +32,6 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,15 +47,21 @@ class DishServiceImplTest {
     @Mock
     private DishRepository dishRepository;
     @Mock
+    private CategoryRepository categoryRepository;
+    @Mock
     private FileStorageService fileStorageService;
 
     private DishServiceImpl service;
+    private Category mainCourse;
+    private Category dessert;
     private Dish dish;
 
     @BeforeEach
     void setUp() {
         service = buildService();
-        dish = newDish("Phở bò tái", DishCategory.MAIN_COURSE, DishStatus.AVAILABLE);
+        mainCourse = newCategory("Món chính");
+        dessert = newCategory("Tráng miệng");
+        dish = newDish("Phở bò tái", mainCourse, DishStatus.AVAILABLE);
     }
 
     private DishServiceImpl buildService(DishDeletionGuard... guards) {
@@ -66,10 +70,17 @@ class DishServiceImplTest {
             factory.addBean("guard" + i, guards[i]);
         }
         DishValidator validator = new DishValidator(dishRepository, factory.getBeanProvider(DishDeletionGuard.class));
-        return new DishServiceImpl(dishRepository, validator, new DishMapperImpl(), fileStorageService);
+        return new DishServiceImpl(dishRepository, categoryRepository, validator, new DishMapperImpl(), fileStorageService);
     }
 
-    private Dish newDish(String name, DishCategory category, DishStatus status) {
+    private Category newCategory(String name) {
+        Category c = new Category();
+        c.setId(UUID.randomUUID());
+        c.setName(name);
+        return c;
+    }
+
+    private Dish newDish(String name, Category category, DishStatus status) {
         Dish d = new Dish();
         d.setId(UUID.randomUUID());
         d.setName(name);
@@ -81,7 +92,7 @@ class DishServiceImplTest {
     }
 
     private DishCreateRequest createRequest() {
-        return new DishCreateRequest("Phở bò tái", DishCategory.MAIN_COURSE, 65000L, "Tô", "Nước dùng hầm 12 giờ", 10, DishStatus.AVAILABLE);
+        return new DishCreateRequest("Phở bò tái", mainCourse.getId(), 65000L, "Tô", "Nước dùng hầm 12 giờ", 10, DishStatus.AVAILABLE);
     }
 
     // ---- tìm kiếm / thực đơn công khai (UC007, UC012) ----
@@ -119,7 +130,7 @@ class DishServiceImplTest {
 
     @Test
     void getVisibleDish_hides_discontinued_dishes() {
-        Dish stopped = newDish("Món cũ", DishCategory.DESSERT, DishStatus.DISCONTINUED);
+        Dish stopped = newDish("Món cũ", dessert, DishStatus.DISCONTINUED);
         when(dishRepository.findById(stopped.getId())).thenReturn(Optional.of(stopped));
 
         assertThatThrownBy(() -> service.getVisibleDish(stopped.getId()))
@@ -133,22 +144,6 @@ class DishServiceImplTest {
         when(dishRepository.findById(dish.getId())).thenReturn(Optional.of(dish));
 
         assertThat(service.getVisibleDish(dish.getId()).status()).isEqualTo(DishStatus.OUT_OF_STOCK);
-    }
-
-    @Test
-    void listCategories_lists_all_four_categories_with_zero_for_empty_ones() {
-        CategoryCountProjection mains = new CategoryCountProjection() {
-            public DishCategory getCategory() { return DishCategory.MAIN_COURSE; }
-            public long getCount() { return 3; }
-        };
-        when(dishRepository.countVisibleByCategory(Set.of(DishStatus.AVAILABLE, DishStatus.OUT_OF_STOCK)))
-                .thenReturn(List.of(mains));
-
-        List<MenuCategoryResponse> categories = service.listCategories();
-
-        assertThat(categories).extracting(MenuCategoryResponse::category)
-                .containsExactly(DishCategory.APPETIZER, DishCategory.MAIN_COURSE, DishCategory.DRINK, DishCategory.DESSERT);
-        assertThat(categories).extracting(MenuCategoryResponse::dishCount).containsExactly(0L, 3L, 0L, 0L);
     }
 
     // ---- quản lý (UC010) ----
@@ -165,6 +160,7 @@ class DishServiceImplTest {
 
     @Test
     void createDish_saves_the_dish() {
+        when(categoryRepository.findById(mainCourse.getId())).thenReturn(Optional.of(mainCourse));
         when(dishRepository.saveAndFlush(any(Dish.class))).thenAnswer(inv -> inv.getArgument(0));
 
         DishDetailResponse response = service.createDish(createRequest());
@@ -173,13 +169,27 @@ class DishServiceImplTest {
         verify(dishRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getId()).isNotNull();
         assertThat(captor.getValue().getPrice()).isEqualTo(65000L);
+        assertThat(captor.getValue().getCategory()).isSameAs(mainCourse);
         assertThat(response.name()).isEqualTo("Phở bò tái");
         assertThat(response.status()).isEqualTo(DishStatus.AVAILABLE);
     }
 
     @Test
+    void createDish_unknown_category_is_not_found() {
+        UUID missing = UUID.randomUUID();
+        when(categoryRepository.findById(missing)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.createDish(
+                new DishCreateRequest("Phở bò tái", missing, 65000L, "Tô", null, null, DishStatus.AVAILABLE)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo("NOT_FOUND");
+        verify(dishRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void createDish_rejects_duplicate_name_in_category() {
-        when(dishRepository.existsByCategoryAndNameIgnoreCase(DishCategory.MAIN_COURSE, "Phở bò tái")).thenReturn(true);
+        when(categoryRepository.findById(mainCourse.getId())).thenReturn(Optional.of(mainCourse));
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCase(mainCourse.getId(), "Phở bò tái")).thenReturn(true);
 
         assertThatThrownBy(() -> service.createDish(createRequest()))
                 .isInstanceOf(BusinessException.class)
@@ -189,6 +199,7 @@ class DishServiceImplTest {
 
     @Test
     void createDish_maps_unique_index_violation_to_name_exists() {
+        when(categoryRepository.findById(mainCourse.getId())).thenReturn(Optional.of(mainCourse));
         when(dishRepository.saveAndFlush(any(Dish.class))).thenThrow(new DataIntegrityViolationException("uq_dishes_category_name"));
 
         assertThatThrownBy(() -> service.createDish(createRequest()))
@@ -198,23 +209,26 @@ class DishServiceImplTest {
 
     @Test
     void updateDish_changes_price_and_status() {
+        when(categoryRepository.findById(mainCourse.getId())).thenReturn(Optional.of(mainCourse));
         when(dishRepository.findById(dish.getId())).thenReturn(Optional.of(dish));
         when(dishRepository.saveAndFlush(dish)).thenReturn(dish);
 
         DishDetailResponse response = service.updateDish(dish.getId(),
-                new DishUpdateRequest("Phở bò tái", DishCategory.MAIN_COURSE, 70000L, "Tô", null, null, DishStatus.OUT_OF_STOCK));
+                new DishUpdateRequest("Phở bò tái", mainCourse.getId(), 70000L, "Tô", null, null, DishStatus.OUT_OF_STOCK));
 
         assertThat(dish.getPrice()).isEqualTo(70000L);
+        assertThat(dish.getCategory()).isSameAs(mainCourse);
         assertThat(response.status()).isEqualTo(DishStatus.OUT_OF_STOCK);
     }
 
     @Test
     void updateDish_rejects_name_of_another_dish_in_category() {
+        when(categoryRepository.findById(mainCourse.getId())).thenReturn(Optional.of(mainCourse));
         when(dishRepository.findById(dish.getId())).thenReturn(Optional.of(dish));
-        when(dishRepository.existsByCategoryAndNameIgnoreCaseAndIdNot(DishCategory.MAIN_COURSE, "Bún chả", dish.getId())).thenReturn(true);
+        when(dishRepository.existsByCategoryIdAndNameIgnoreCaseAndIdNot(mainCourse.getId(), "Bún chả", dish.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> service.updateDish(dish.getId(),
-                new DishUpdateRequest("Bún chả", DishCategory.MAIN_COURSE, 65000L, "Tô", null, null, DishStatus.AVAILABLE)))
+                new DishUpdateRequest("Bún chả", mainCourse.getId(), 65000L, "Tô", null, null, DishStatus.AVAILABLE)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo("DISH_NAME_EXISTS");
     }
