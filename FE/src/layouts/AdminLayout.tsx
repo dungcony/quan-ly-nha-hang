@@ -1,6 +1,17 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { LayoutDashboard, Users, Utensils, LogOut, FileText, Grid } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  UserRound,
+  Utensils,
+  Tags,
+  LogOut,
+  FileText,
+  Grid,
+  CalendarCheck,
+  Receipt,
+} from 'lucide-react';
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -8,9 +19,13 @@ export default function AdminLayout() {
 
   const navItems = [
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/admin/menu', label: 'Thực đơn', icon: Utensils },
+    { path: '/admin/menu', label: 'Món ăn', icon: Utensils },
+    { path: '/admin/categories', label: 'Danh mục', icon: Tags },
     { path: '/admin/tables', label: 'Bàn ăn', icon: Grid },
-    { path: '/admin/users', label: 'Nhân sự', icon: Users },
+    { path: '/admin/reservations', label: 'Đặt bàn', icon: CalendarCheck },
+    { path: '/admin/invoices', label: 'Hóa đơn', icon: Receipt },
+    { path: '/admin/staff', label: 'Nhân sự', icon: Users },
+    { path: '/admin/customers', label: 'Khách hàng', icon: UserRound },
     { path: '/admin/reports', label: 'Báo cáo', icon: FileText },
   ];
 
@@ -23,7 +38,7 @@ export default function AdminLayout() {
           <span className="font-bold text-lg text-slate-800">Admin Portal</span>
         </div>
         
-        <nav className="flex-1 py-4 px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path || 
               (item.path !== '/admin' && location.pathname.startsWith(item.path));

@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { authApi } from '@/api/authApi';
 import type { ErrorResponse } from '@/utils/apiTypes';
+import ResendVerificationForm from '@/components/features/ResendVerificationForm';
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
@@ -67,7 +68,8 @@ export default function VerifyEmailPage() {
               <AlertCircle className="size-8" />
             </div>
             <h2 className="text-2xl font-bold text-slate-900 text-balance">Xác thực không thành công</h2>
-            <p className="text-sm text-red-600 mt-2 text-pretty">{errorMsg}</p>
+            <p className="text-sm text-red-600 mt-2 mb-6 text-pretty">{errorMsg}</p>
+            <ResendVerificationForm />
             <Link
               to="/login"
               className="mt-6 inline-flex items-center justify-center w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium text-sm transition"

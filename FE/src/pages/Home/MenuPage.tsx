@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Search, Loader2 } from 'lucide-react';
-import { menuApi, DishSummaryResponse, MenuCategoryResponse } from '@/api/menuApi';
+import { menuApi, type DishSummaryResponse, type MenuCategoryResponse, type MenuDishQuery } from '@/api/menuApi';
+import { assetUrl } from '@/utils/assetUrl';
+import { formatVnd } from '@/utils/format';
 
 export default function MenuPage() {
   const [categories, setCategories] = useState<MenuCategoryResponse[]>([]);
@@ -34,9 +36,9 @@ export default function MenuPage() {
   const fetchDishes = async () => {
     setIsLoading(true);
     try {
-      const params: any = { size: 50 }; // Lấy max 50 món cho demo
-      if (activeCategory) params.category = activeCategory;
-      if (searchQuery) params.keyword = searchQuery;
+      const params: MenuDishQuery = { page_size: 50 };
+      if (activeCategory) params.category_id = activeCategory;
+      if (searchQuery) params.name = searchQuery;
       
       const response = await menuApi.getDishes(params);
       if (response.data?.items) {
@@ -47,17 +49,6 @@ export default function MenuPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const translateCategory = (cat: string) => {
-    const map: Record<string, string> = {
-      APPETIZER: 'Khai vị',
-      MAIN_COURSE: 'Món chính',
-      DESSERT: 'Tráng miệng',
-      BEVERAGE: 'Đồ uống',
-      OTHER: 'Khác',
-    };
-    return map[cat] || cat;
   };
 
   return (
@@ -97,13 +88,13 @@ export default function MenuPage() {
             </button>
             {categories.map((cat) => (
               <button
-                key={cat.category}
-                onClick={() => setActiveCategory(cat.category)}
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
                 className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition ${
-                  activeCategory === cat.category ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  activeCategory === cat.id ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {translateCategory(cat.category)} ({cat.dish_count})
+                {cat.name} ({cat.dish_count})
               </button>
             ))}
           </div>
@@ -124,7 +115,7 @@ export default function MenuPage() {
               <div key={dish.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col">
                 <div className="aspect-w-4 aspect-h-3 bg-slate-100 relative">
                   {dish.image_url ? (
-                    <img src={dish.image_url} alt={dish.name} className="object-cover w-full h-48" />
+                    <img src={assetUrl(dish.image_url)} alt={dish.name} className="object-cover w-full h-48" />
                   ) : (
                     <div className="w-full h-48 flex items-center justify-center bg-slate-200 text-slate-400">
                       Chưa có ảnh
@@ -138,12 +129,12 @@ export default function MenuPage() {
                 </div>
                 <div className="p-5 flex-1 flex flex-col">
                   <div className="text-xs font-semibold text-amber-600 mb-1 uppercase tracking-wider">
-                    {translateCategory(dish.category)}
+                    {dish.category_name}
                   </div>
                   <h3 className="font-bold text-slate-900 text-lg mb-2">{dish.name}</h3>
                   <div className="mt-auto flex items-end justify-between">
                     <span className="font-bold text-xl text-slate-900">
-                      {dish.price.toLocaleString('vi-VN')} đ <span className="text-sm text-slate-500 font-normal">/ {dish.unit}</span>
+                      {formatVnd(dish.price)} <span className="text-sm text-slate-500 font-normal">/ {dish.unit}</span>
                     </span>
                   </div>
                 </div>

@@ -5,6 +5,21 @@ export interface ApiResponse<T> {
   msg: string;
 }
 
+// trạng thái món ăn
+export type DishStatus = 'AVAILABLE' | 'OUT_OF_STOCK' | 'DISCONTINUED';
+
+// trạng thái đặt bàn
+export type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CANCELLED' | 'NO_SHOW';
+
+// trạng thái đơn hàng
+export type OrderStatus = 'OPEN' | 'CLOSED';
+
+// trạng thái từng dòng món trong đơn
+export type OrderItemStatus = 'PENDING' | 'COOKING' | 'READY' | 'SERVED' | 'CANCELLED';
+
+// phương thức thanh toán
+export type PaymentMethod = 'CASH' | 'CARD' | 'BANK_TRANSFER';
+
 // chi tiết từng trường lỗi từ ErrorResponse
 export interface FieldErrorItem {
   field: string;
@@ -16,7 +31,7 @@ export interface ErrorDetail {
   code: string;
   message: string;
   fields?: FieldErrorItem[];
-  detail?: string;
+  detail?: Record<string, unknown> | null;
 }
 
 // cấu trúc phản hồi lỗi khi backend ném exception
@@ -28,9 +43,9 @@ export interface ErrorResponse {
 // thông tin phân trang từ PageMeta
 export interface PageMeta {
   page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
 }
 
 // dữ liệu phân trang từ PageResponse
@@ -46,7 +61,7 @@ export type Role = 'CUSTOMER' | 'WAITER' | 'CASHIER' | 'CHEF' | 'MANAGER';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 
 // trạng thái tài khoản
-export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'PENDING_VERIFICATION';
+export type UserStatus = 'ACTIVE' | 'LOCKED';
 
 // thông tin tài khoản thu gọn trả về khi đăng nhập
 export interface AuthUserResponse {

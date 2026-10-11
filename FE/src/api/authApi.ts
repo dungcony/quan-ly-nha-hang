@@ -25,6 +25,11 @@ export const authApi = {
     return axiosClient.post('/auth/verify-email', { token });
   },
 
+  // gửi lại liên kết xác thực email khi liên kết cũ hết hạn hoặc chưa nhận được
+  resendVerification: (email: string): Promise<ApiResponse<null>> => {
+    return axiosClient.post('/auth/resend-verification', { email });
+  },
+
   // gửi yêu cầu cấp lại mật khẩu qua email
   forgotPassword: (data: PasswordForgotRequest): Promise<ApiResponse<null>> => {
     return axiosClient.post('/auth/forgot-password', data);

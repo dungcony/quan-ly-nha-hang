@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { roleHomePath } from '@/utils/labels';
 
 interface ProtectedRouteProps {
   allowedRoles?: string[];
@@ -21,8 +22,8 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    // Nếu đã đăng nhập nhưng không có quyền, chuyển về trang chủ hoặc báo lỗi
-    return <Navigate to="/" replace />;
+    // đã đăng nhập nhưng sai vai trò thì về khu vực làm việc của chính vai trò đó
+    return <Navigate to={roleHomePath(user.role)} replace />;
   }
 
   return <Outlet />;
