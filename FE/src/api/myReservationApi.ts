@@ -1,5 +1,5 @@
 import axiosClient from '@/helpers/axiosClient';
-import type { ApiResponse } from '@/utils/apiTypes';
+import type { ApiResponse, PageResponse } from '@/utils/apiTypes';
 
 export interface MyReservationResponse {
   id: string;
@@ -14,7 +14,7 @@ export interface MyReservationResponse {
 
 export const myReservationApi = {
   // Lấy danh sách đặt bàn của tôi
-  getMyReservations: (): Promise<ApiResponse<MyReservationResponse[]>> => {
+  getMyReservations: (): Promise<ApiResponse<PageResponse<MyReservationResponse>>> => {
     return axiosClient.get('/me/reservations');
   },
 

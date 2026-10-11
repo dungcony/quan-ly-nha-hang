@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
 
 export default function AdminMenuPage() {
@@ -59,7 +59,9 @@ export default function AdminMenuPage() {
                   <td className="px-6 py-4">{dish.category}</td>
                   <td className="px-6 py-4">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(dish.price)}</td>
                   <td className="px-6 py-4">
-                    <span className={px-2.5 py-1 rounded-full text-xs font-medium }>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      dish.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
                       {dish.status === 'AVAILABLE' ? 'Còn hàng' : 'Hết hàng'}
                     </span>
                   </td>

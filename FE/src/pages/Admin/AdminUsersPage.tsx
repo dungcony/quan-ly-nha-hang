@@ -1,8 +1,8 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState([
+  const [users] = useState([
     { id: 1, full_name: 'Nguyễn Văn Quản Lý', email: 'manager@restaurant.com', role: 'MANAGER', status: 'ACTIVE' },
     { id: 2, full_name: 'Trần Văn Bếp', email: 'chef@restaurant.com', role: 'CHEF', status: 'ACTIVE' },
     { id: 3, full_name: 'Lê Thị Thu', email: 'cashier@restaurant.com', role: 'CASHIER', status: 'ACTIVE' },
@@ -59,17 +59,19 @@ export default function AdminUsersPage() {
                   <td className="px-6 py-4 font-medium text-slate-900">{user.full_name}</td>
                   <td className="px-6 py-4">{user.email}</td>
                   <td className="px-6 py-4">
-                    <span className={px-2.5 py-1 rounded-full text-xs font-medium 
-                      
-                      
-                      
-                      
-                    }>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      user.role === 'MANAGER' ? 'bg-purple-100 text-purple-700' :
+                      user.role === 'CHEF' ? 'bg-orange-100 text-orange-700' :
+                      user.role === 'CASHIER' ? 'bg-green-100 text-green-700' :
+                      user.role === 'WAITER' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
+                    }`}>
                       {user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={px-2.5 py-1 rounded-full text-xs font-medium }>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      user.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
                       {user.status === 'ACTIVE' ? 'Hoạt động' : 'Khóa'}
                     </span>
                   </td>

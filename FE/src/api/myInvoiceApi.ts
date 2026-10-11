@@ -1,5 +1,5 @@
 import axiosClient from '@/helpers/axiosClient';
-import type { ApiResponse } from '@/utils/apiTypes';
+import type { ApiResponse, PageResponse } from '@/utils/apiTypes';
 
 export interface MyInvoiceResponse {
   id: string;
@@ -24,7 +24,7 @@ export interface MyInvoiceDetailResponse {
 
 export const myInvoiceApi = {
   // Lấy danh sách hóa đơn của tôi
-  getMyInvoices: (): Promise<ApiResponse<MyInvoiceResponse[]>> => {
+  getMyInvoices: (): Promise<ApiResponse<PageResponse<MyInvoiceResponse>>> => {
     return axiosClient.get('/me/invoices');
   },
 

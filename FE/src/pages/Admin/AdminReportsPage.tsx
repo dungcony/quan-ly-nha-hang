@@ -93,7 +93,7 @@ export default function AdminReportsPage() {
               <div key={i} className="flex flex-col items-center gap-2 w-full">
                 <div 
                   className="w-full bg-amber-200 rounded-t-sm hover:bg-amber-400 transition-colors cursor-pointer relative group"
-                  style={{ height: ${Math.max(10, Math.random() * 100)}% }}
+                  style={{ height: `${Math.max(10, Math.random() * 100)}%` }}
                 >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded hidden group-hover:block whitespace-nowrap z-10">
                     {Math.floor(Math.random() * 5)}M đ

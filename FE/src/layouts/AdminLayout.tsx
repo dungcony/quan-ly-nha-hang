@@ -1,4 +1,4 @@
-﻿import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { LayoutDashboard, Users, Utensils, LogOut, FileText, Grid } from 'lucide-react';
 
@@ -32,12 +32,16 @@ export default function AdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={lex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors }
+                className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                  isActive 
+                    ? 'text-amber-700 bg-amber-50' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
               >
-                <item.icon className={h-5 w-5 mr-3 } />
+                <item.icon className={`h-5 w-5 mr-3 ${isActive ? 'text-amber-600' : 'text-slate-400'}`} />
                 {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
 
